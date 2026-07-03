@@ -1,0 +1,3 @@
+APP_NAME = "Ops Center"
+APP_VERSION = "3.0.0"
+APP_VERSION_DATE = "2026-07-04"
