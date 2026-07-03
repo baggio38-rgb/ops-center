@@ -23,6 +23,15 @@ from config import PROJECT_ID, DATASET_ID, BQ_PREFIX
 from version import APP_NAME, APP_VERSION, APP_VERSION_DATE
 from services.bigquery_client import get_bq_client
 from pages.upload import render_data_upload
+from utils.formatter import (
+    fmt_num,
+    fmt_pct,
+    safe_sum,
+    safe_mean,
+    safe_nunique,
+    member_count,
+    tone_by_sign,
+)
 
 # v4 page modules (thin wrappers; each page delegates to the current dashboard implementation)
 from pages.overview import render_overview_page, render_recent_trend_page, render_finance_channel_page, render_bonus_analysis_page, render_bonus_roi_agent_quality_page, render_agent_commission_page
@@ -608,64 +617,6 @@ def to_datetime_safe(series: pd.Series) -> pd.Series:
     if s.dtype == object:
         s = s.astype(str).str.replace('="', '', regex=False).str.replace('"', '', regex=False)
     return pd.to_datetime(s, errors="coerce")
-
-
-def fmt_num(v, suffix=""):
-    if v is None or pd.isna(v):
-        return "N/A"
-    v = float(v)
-    if abs(v) >= 1e8:
-        return f"{v/1e8:,.2f}亿{suffix}"
-    if abs(v) >= 1e4:
-        return f"{v/1e4:,.2f}万{suffix}"
-    if float(v).is_integer():
-        return f"{int(v):,}{suffix}"
-    return f"{v:,.2f}{suffix}"
-
-
-def fmt_pct(v):
-    if v is None or pd.isna(v):
-        return "N/A"
-    v = float(v)
-    return f"{v*100:,.2f}%" if abs(v) <= 1 else f"{v:,.2f}%"
-
-
-def safe_sum(df: pd.DataFrame, col: str) -> float:
-    return float(df[col].sum()) if col in df.columns else 0.0
-
-
-def safe_mean(df: pd.DataFrame, col: str) -> float:
-    return float(df[col].mean()) if col in df.columns and len(df) else 0.0
-
-
-def safe_nunique(df: pd.DataFrame, col: str) -> int:
-    return int(df[col].nunique()) if col in df.columns else 0
-
-
-def member_count(df: pd.DataFrame, account_col: str = '会员账号', agent_col: str = '代理') -> int:
-    """全站统一「会员数」口径：按「会员账号 + 代理」去重计数。
-    同一个账号名挂在不同代理底下 = 不同的人，只按账号会把他们并成一个、少算人头
-    （跟「代理×会员」「新注册分析」一致）。没有代理列就退回按账号去重。"""
-    if account_col not in df.columns:
-        return 0
-    if agent_col in df.columns:
-        return int(df.drop_duplicates(subset=[account_col, agent_col]).shape[0])
-    return int(df[account_col].nunique())
-
-
-
-def tone_by_sign(v, invert: bool = False) -> Optional[str]:
-    """按数值正负给指标卡状态色（纯展示用，不改任何计算）。正=绿、负=红；invert=True 时反过来（如成本类）。"""
-    if v is None or pd.isna(v):
-        return None
-    v = float(v)
-    if v == 0:
-        return None
-    positive = v > 0
-    if invert:
-        positive = not positive
-    return 'good' if positive else 'bad'
-
 
 def show_metric(card_col, label: str, value: str, delta: Optional[str] = None, help_text: Optional[str] = None,
                 tone: Optional[str] = None, delta_tone: str = 'auto'):
