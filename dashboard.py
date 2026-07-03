@@ -20,17 +20,10 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
 from google.cloud import bigquery
+from config import PROJECT_ID, DATASET_ID, BQ_PREFIX
+from version import APP_NAME, APP_VERSION, APP_VERSION_DATE
 
-PROJECT_ID = "mydata-494606"
-DATASET_ID = "mydata"
-BQ_PREFIX = f"{PROJECT_ID}.{DATASET_ID}"
-
-# ── 版本号 ────────────────────────────────────────────────
-APP_VERSION = "v2.3"          # 数据健康页 + 上传校验/内容识别/月份选 + 三份代理数据全自助(市代月度独立页+对比) + 平哥结算月报自助
-APP_VERSION_DATE = "2026-07-03"
-
-# ── 页面配置 ──────────────────────────────────────────────
-st.set_page_config(page_title="运营数据分析", layout="wide")
+st.set_page_config(page_title=APP_NAME, layout="wide")
 
 # ── 样式 ──────────────────────────────────────────────────
 st.markdown(
