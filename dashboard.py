@@ -38,6 +38,14 @@ from pages.overview import render_overview_page, render_recent_trend_page, rende
 from pages.member import render_member_value_page, render_bet_analysis_page, render_cs_analysis_page, render_winback_page, render_realtime_page
 from pages.agent import render_channel_agent_page, render_new_member_analysis_page, render_agent_member_matrix_page, render_agent_market_monthly_page, render_game_venue_page
 from pages.data import render_data_health_page, render_data_source_guide_page, render_data_manage_page
+from constants import (
+    BLUE,
+    CYAN,
+    GREEN,
+    RED,
+    PURPLE,
+    AMBER,
+)
 
 st.set_page_config(page_title=APP_NAME, layout="wide")
 
@@ -379,13 +387,6 @@ hr { border-color: var(--line) !important; margin: 0.8rem 0 !important; }
 """,
     unsafe_allow_html=True,
 )
-
-BLUE = "#5B8FF9"
-CYAN = "#22D3EE"
-GREEN = "#2DD4A7"
-RED = "#FB7185"
-PURPLE = "#A78BFA"
-AMBER = "#FBBF24"
 
 # ── 自定义图表主题（全站统一）：透明底融入面板卡、细网格、统一字体与悬浮样式 ──
 import plotly.io as pio
