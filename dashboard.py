@@ -19,9 +19,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 import streamlit as st
-from google.cloud import bigquery
 from config import PROJECT_ID, DATASET_ID, BQ_PREFIX
 from version import APP_NAME, APP_VERSION, APP_VERSION_DATE
+from services.bigquery_client import get_bq_client
 
 st.set_page_config(page_title=APP_NAME, layout="wide")
 
@@ -564,22 +564,9 @@ class FilterNotice:
     detail: str
 
 
-@st.cache_resource
-def get_client():
-    try:
-        from google.oauth2 import service_account
-        creds = service_account.Credentials.from_service_account_info(
-            st.secrets["gcp_service_account"],
-            scopes=["https://www.googleapis.com/auth/bigquery"]
-        )
-        return bigquery.Client(project=PROJECT_ID, credentials=creds)
-    except Exception:
-        return bigquery.Client(project=PROJECT_ID)
-
-
 @st.cache_data(ttl=300)
 def query_bq(sql: str) -> pd.DataFrame:
-    client = get_client()
+    client = get_bq_client()
     df = client.query(sql).to_dataframe()
     return normalize_dataframe(df)
 
@@ -1490,7 +1477,7 @@ def render_overview():
                 f"FROM `{BQ_PREFIX}.raw_game_report_venue` "
                 f"WHERE `时间` LIKE '{month}%' GROUP BY venue"
             )
-            vdf = get_client().query(vsql).to_dataframe()
+            vdf = get_bq_client().query(vsql).to_dataframe()
             if not vdf.empty:
                 vdf['类别'] = vdf['venue'].map(_venue_category)
                 cat = vdf.groupby('类别', as_index=False)['win'].sum().sort_values('win', ascending=False)
@@ -1525,7 +1512,7 @@ def render_overview():
                 f"FROM `{BQ_PREFIX}.raw_platform_report` "
                 f"WHERE SUBSTR(`日期`,1,7) IN ('{month}','{prev_ym}') GROUP BY ym"
             )
-            mdf = get_client().query(psql).to_dataframe()
+            mdf = get_bq_client().query(psql).to_dataframe()
             if len(mdf) == 2:
                 mdf = mdf.set_index('ym')
                 cb, pb = float(mdf.loc[month, 'bet']), float(mdf.loc[prev_ym, 'bet'])
@@ -2810,7 +2797,7 @@ def render_bet_analysis():
     bet_month_label = '2026-04'
     try:
         # 直接走 client：query_bq 的 normalize 会把 table_name 字串列强转数字成 NaN
-        _tbls = get_client().query(
+        _tbls = get_bq_client().query(
             f"SELECT table_name FROM `{BQ_PREFIX}.INFORMATION_SCHEMA.TABLES` "
             "WHERE table_name LIKE 'raw_bet_detail_%' ORDER BY table_name"
         ).to_dataframe()
@@ -5358,7 +5345,7 @@ def render_winback():
 
 # ══════════════════════════════════════════════════════════════
 # 数据上传页 — 自助把月度报表写进 BigQuery
-# 复用 import_tool 的解析/清洗逻辑；写入走 get_client() 的服务账号。
+# 复用 import_tool 的解析/清洗逻辑；写入走 get_bq_client() 的服务账号。
 # 铁律：只「追加」+ 用 _source_file 防重复，绝不覆盖/删除既有数据。
 # 注：标准 10 张月报先上（append 安全）；红利/客服对话之后补（需 read-modify-write）。
 # ══════════════════════════════════════════════════════════════
@@ -6469,7 +6456,7 @@ def _data_health_rows():
         ('代理结算汇总 · 代理佣金', 'raw_agent_settlement_summary', '月份', 'manual'),
         ('代理结算月度(市代) · 代理佣金', 'raw_agent_settlement_monthly', '月份', 'manual'),
     ]
-    client = get_client()
+    client = get_bq_client()
     # 先查哪些表真的存在，避免某张表缺失（沙盒过期/从未上传）让整条 UNION 查询 404 拖垮整页
     existing = None
     try:
@@ -6749,7 +6736,7 @@ def render_data_upload():
             '· 同一个档案重复上传会自动跳过；红利按「订单号」去重只补新订单；代理佣金按「佣金月份」刷新当月、保留其他月——都不会变成两份，也不动其他旧数据。')
         return
 
-    client = get_client()
+    client = get_bq_client()
     preview_rows = []
     parsed = []  # 每个 entry 是 _classify_and_parse 返回的 dict
     upload_warnings = []  # [(文件, [⚠️...])]
@@ -6938,7 +6925,7 @@ def render_data_manage():
          '选一张表 + 要删的月份/批次 → 真的从 BigQuery 把那批删掉（表会变小、省空间），不是只是不显示。'
          '用「读出来 → 去掉 → 整张写回」的安全删法（这项目没开 billing、免费版禁直接 DELETE，但这招照样真删）。删了就没了，谨慎操作。')
     try:
-        client = get_client()
+        client = get_bq_client()
     except Exception as e:
         st.error(f'连不上数据库：{str(e)[:100]}')
         return
