@@ -24,6 +24,12 @@ from version import APP_NAME, APP_VERSION, APP_VERSION_DATE
 from services.bigquery_client import get_bq_client
 from pages.upload import render_data_upload
 
+# v4 page modules (thin wrappers; each page delegates to the current dashboard implementation)
+from pages.overview import render_overview_page, render_recent_trend_page, render_finance_channel_page, render_bonus_analysis_page, render_bonus_roi_agent_quality_page, render_agent_commission_page
+from pages.member import render_member_value_page, render_bet_analysis_page, render_cs_analysis_page, render_winback_page, render_realtime_page
+from pages.agent import render_channel_agent_page, render_new_member_analysis_page, render_agent_member_matrix_page, render_agent_market_monthly_page, render_game_venue_page
+from pages.data import render_data_health_page, render_data_source_guide_page, render_data_manage_page
+
 st.set_page_config(page_title=APP_NAME, layout="wide")
 
 # ── 样式 ──────────────────────────────────────────────────
@@ -6964,32 +6970,32 @@ def main():
     # 两层导航：大类 → 细项
     GROUPS = {
         '🅰️ 财务结果': [
-            ('经营总览', render_overview),
-            ('近期走势(日报)', render_recent_trend),
-            ('存取款分析', render_finance_channel),
-            ('红利分析', render_bonus_analysis),
-            ('红利 ROI & 代理质量', render_bonus_roi_agent_quality),
-            ('代理佣金 & 退成', render_agent_commission),
+            ('经营总览', render_overview_page),
+            ('近期走势(日报)', render_recent_trend_page),
+            ('存取款分析', render_finance_channel_page),
+            ('红利分析', render_bonus_analysis_page),
+            ('红利 ROI & 代理质量', render_bonus_roi_agent_quality_page),
+            ('代理佣金 & 退成', render_agent_commission_page),
         ],
         '🅱️ 会员价值': [
-            ('会员结构 & ARPU', render_member_value),
-            ('投注分析', render_bet_analysis),
-            ('客服分析', render_cs_analysis),
-            ('电访召回', render_winback),
-            ('实时波动 & DAU', render_realtime),
+            ('会员结构 & ARPU', render_member_value_page),
+            ('投注分析', render_bet_analysis_page),
+            ('客服分析', render_cs_analysis_page),
+            ('电访召回', render_winback_page),
+            ('实时波动 & DAU', render_realtime_page),
         ],
         '🅲 代理 / 渠道': [
-            ('代理团队 & 渠道', render_channel_agent),
-            ('新注册分析', render_new_member_analysis),
-            ('代理 × 会员 明细', render_agent_member_matrix),
-            ('市代月度结算', render_agent_market_monthly),
-            ('游戏 & 场馆', render_game_venue),
+            ('代理团队 & 渠道', render_channel_agent_page),
+            ('新注册分析', render_new_member_analysis_page),
+            ('代理 × 会员 明细', render_agent_member_matrix_page),
+            ('市代月度结算', render_agent_market_monthly_page),
+            ('游戏 & 场馆', render_game_venue_page),
         ],
         '🗂 数据上传': [
-            ('🩺 数据健康', render_data_health),
-            ('📖 数据说明', render_data_source_guide),
+            ('🩺 数据健康', render_data_health_page),
+            ('📖 数据说明', render_data_source_guide_page),
             ('月度报表上传', render_data_upload),
-            ('删除数据', render_data_manage),
+            ('删除数据', render_data_manage_page),
         ],
     }
     group = st.radio(
