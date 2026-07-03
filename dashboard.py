@@ -22,6 +22,7 @@ import streamlit as st
 from config import PROJECT_ID, DATASET_ID, BQ_PREFIX
 from version import APP_NAME, APP_VERSION, APP_VERSION_DATE
 from services.bigquery_client import get_bq_client
+from pages.upload import render_data_upload
 
 st.set_page_config(page_title=APP_NAME, layout="wide")
 
@@ -6710,7 +6711,7 @@ def _validate_entry(entry, client):
     return warns
 
 
-def render_data_upload():
+def _render_data_upload_impl():
     import os
 
     hero('数据上传（= 把报表永久保存进数据库）',
