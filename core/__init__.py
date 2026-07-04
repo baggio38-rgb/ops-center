@@ -1,8 +1,6 @@
-"""Core implementation package for Ops Center.
+"""Core package for legacy shared helpers.
 
-V6.2 keeps shared helpers and non-migrated page renderers in legacy.py.
-Finance-result page renderers now live in features/finance_results.py and are
-imported directly by app_pages/finance_results.py to avoid circular imports.
+Keep this package initializer intentionally lightweight.
+Do not import legacy.py here, because feature modules import core.legacy
+and eager imports can create circular imports during Streamlit startup.
 """
-
-from .legacy import *  # noqa: F401,F403
