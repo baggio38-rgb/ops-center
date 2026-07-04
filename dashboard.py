@@ -45,6 +45,7 @@ from constants import (
     RED,
     PURPLE,
     AMBER,
+    TEXT_COLUMNS,
 )
 
 st.set_page_config(page_title=APP_NAME, layout="wide")
