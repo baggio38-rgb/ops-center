@@ -7,8 +7,9 @@ from features.member_value import (
     render_bet_analysis,
     render_cs_analysis,
     render_winback,
-    render_realtime,
 )
+from features.realtime_health import render_realtime
+
 
 MEMBER_VALUE_PAGES = [
     ("会员结构 & ARPU", render_member_value),

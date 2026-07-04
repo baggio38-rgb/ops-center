@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 from features.upload_admin import (
-    render_data_health,
     render_data_source_guide,
     _render_data_upload_impl,
     render_data_manage,
 )
+from features.realtime_health import render_data_health
+
 
 DATA_ADMIN_PAGES = [
     ("🩺 数据健康", render_data_health),
