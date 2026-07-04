@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core import (
+from features.agent_channel import (
     render_channel_agent,
     render_new_member_analysis,
     render_agent_member_matrix,
