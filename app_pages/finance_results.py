@@ -6,7 +6,7 @@ It is not a Streamlit multipage file, so it will not appear in the sidebar.
 
 from __future__ import annotations
 
-from ops_core import (
+from core import (
     render_overview,
     render_recent_trend,
     render_finance_channel,

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ops_core import (
+from core import (
     render_member_value,
     render_bet_analysis,
     render_cs_analysis,

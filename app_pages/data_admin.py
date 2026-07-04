@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from ops_core import (
+from core import (
     render_data_health,
     render_data_source_guide,
     _render_data_upload_impl,
