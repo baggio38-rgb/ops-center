@@ -1,20 +1,11 @@
-"""Data upload page entry point.
+"""Compatibility launcher for Streamlit multipage routing.
 
-Thin wrapper that delegates to the upload implementation in dashboard.py.
-Works in both local Streamlit and Streamlit Cloud runtimes.
+The real navigation lives in dashboard.py. If Streamlit opens this file from
+the sidebar, delegate back to the main dashboard to keep the Chinese top-nav UI.
 """
 
 from __future__ import annotations
 
-import sys
+import dashboard
 
-
-def render_data_upload():
-    for module_name in ("dashboard", "__main__"):
-        app = sys.modules.get(module_name)
-        if app is None:
-            continue
-        impl = getattr(app, "_render_data_upload_impl", None)
-        if impl is not None:
-            return impl()
-    raise RuntimeError("_render_data_upload_impl is not available in the loaded Streamlit app module")
+dashboard.main()

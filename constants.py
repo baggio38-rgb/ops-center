@@ -36,3 +36,9 @@ TEXT_COLUMNS = {
     "网站名称", "是否邀请评价", "满意度评价", "评价内容", "服务主题",
     "机器人标识", "对话内容", "_sheet", "_extracted_issue",
 }
+
+# If Streamlit is accidentally deployed with constants.py as the main file,
+# delegate to dashboard.py so the app still opens correctly.
+if __name__ == "__main__":
+    import dashboard
+    dashboard.main()

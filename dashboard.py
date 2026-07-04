@@ -6632,7 +6632,7 @@ def _validate_entry(entry, client):
     return warns
 
 
-def __render_data_upload_impl_impl():
+def _render_data_upload_impl():
     import os
 
     hero('数据上传（= 把报表永久保存进数据库）',
