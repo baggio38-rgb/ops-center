@@ -1,12 +1,8 @@
-"""Finance results page group.
-
-This module intentionally imports stable render implementations from ops_core.
-It is not a Streamlit multipage file, so it will not appear in the sidebar.
-"""
+"""Finance results page group."""
 
 from __future__ import annotations
 
-from core import (
+from features.finance_results import (
     render_overview,
     render_recent_trend,
     render_finance_channel,
