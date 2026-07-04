@@ -6,7 +6,6 @@ BigQuery 报表导入工具（Claude 交接版）
 - 为会员报表补 `_snapshot_month` / `_snapshot_date`
 - 为 TOP 报表补 `_snapshot_date`
 - 为所有导入补 `_source_file`
-- v2.1: 支援投注记录并按下注时间写入 raw_bet_detail_YYYY_MM
 """
 
 from __future__ import annotations
@@ -29,9 +28,6 @@ PROJECT_ID = 'mydata-494606'
 DATASET_ID = 'mydata'
 
 FILE_MAP = [
-    # 投注记录是风控与投注习惯分析的核心事实表。
-    # 目标表会在 process_folder 内依「下注时间」动态改成 raw_bet_detail_YYYY_MM。
-    (r'投注记录|投注記錄|bet[_\-]?detail|bet[-_ ]?record', 'raw_bet_detail', '投注记录'),
     (r'business-report', 'raw_platform_report', '平台报表'),
     (r'finance-report', 'raw_finance_report', '财务报表'),
     (r'game-analysis', 'raw_game_analysis', '游戏分析'),
@@ -48,7 +44,7 @@ FILE_MAP = [
 SKIP_EXACT = {
     '日期', '时间', '代理ID', '代理编号', '代理名称', '代理类型',
     '会员账号', '注册时间', '用户名', '站点名称', '场馆名称',
-    '游戏类型', '游戏名称', '投注详情', '玩法', '盘口', '欧赔', '状态', '注单流水号', '游戏编号', '上级代理ID', '上级代理名称', '上级代理编号', '注册来源', '注册网址', '区号', '地区名称',
+    '游戏类型', '游戏名称', '注册来源', '注册网址', '区号', '地区名称',
     '用户标签', '会员状态', '用户来源', '是否为代理', 'VIP等级',
     '推广渠道', '一级', '二级', '三级', '四级',
     '_snapshot_month', '_snapshot_date', '_imported_at', '_source_file',
@@ -177,50 +173,6 @@ def month_to_snapshot_date(yyyymm: Optional[str]) -> Optional[str]:
     return f'{yyyymm[:4]}-{yyyymm[4:6]}-01'
 
 
-BET_DETAIL_REQUIRED_COLUMNS = {
-    '会员账号', '场馆名称', '游戏名称', '游戏类型',
-    '下注金额', '有效投注', '盈亏', '下注时间', '注单流水号'
-}
-
-
-def looks_like_bet_detail(df: pd.DataFrame) -> bool:
-    """用栏位判断是否为投注记录。
-
-    这样即使未来文件名不是「投注记录」，只要栏位结构相同也能识别。
-    """
-    cols = {str(c).strip() for c in df.columns}
-    return len(BET_DETAIL_REQUIRED_COLUMNS & cols) >= 7
-
-
-def infer_bet_detail_months(df: pd.DataFrame, filepath: str) -> pd.Series:
-    """返回每笔注单所属月份，格式 YYYY_MM。
-
-    优先用「下注时间」，因为投注风控要以真实下注时间为准；
-    如果文件没有可解析的下注时间，才退回文件名日期。
-    """
-    if '下注时间' in df.columns:
-        raw = df['下注时间'].astype(str).str.replace('="', '', regex=False).str.replace('"', '', regex=False).str.strip()
-        dt = pd.to_datetime(raw, errors='coerce')
-        months = dt.dt.strftime('%Y_%m')
-        if months.notna().any():
-            return months
-
-    basename = os.path.basename(filepath)
-    m = re.search(r'(20\d{2})[-_]?([01]\d)', basename)
-    fallback = f'{m.group(1)}_{m.group(2)}' if m else datetime.datetime.fromtimestamp(os.path.getmtime(filepath)).strftime('%Y_%m')
-    return pd.Series([fallback] * len(df), index=df.index)
-
-
-def normalize_bet_detail(df: pd.DataFrame, filepath: str) -> pd.DataFrame:
-    """投注记录基础标准化。
-
-    保留原始栏位，同时补充 _bet_month，方便写入 raw_bet_detail_YYYY_MM。
-    """
-    out = df.copy()
-    out['_bet_month'] = infer_bet_detail_months(out, filepath)
-    return out
-
-
 def save_cleaned_full(df: pd.DataFrame, output_path: str) -> None:
     import xlsxwriter
     workbook = xlsxwriter.Workbook(output_path)
@@ -324,9 +276,6 @@ def process_folder(folder_path: str, dry_run: bool = False):
         print(f'[{idx}/{total_files}] {basename}')
         try:
             table_name, display_name = identify_report_type(filepath)
-            df = read_file(filepath)
-            if table_name is None and looks_like_bet_detail(df):
-                table_name, display_name = 'raw_bet_detail', '投注记录'
             if table_name is None:
                 print('  类型: 未识别，跳过')
                 errors.append((basename, '无法识别文件类型'))
@@ -334,18 +283,14 @@ def process_folder(folder_path: str, dry_run: bool = False):
                 continue
             print(f'  类型: {display_name}')
 
+            df = read_file(filepath)
             original_rows = len(df)
             summary_mask = df.apply(lambda row: is_summary_row(row.values), axis=1)
             summary_count = int(summary_mask.sum())
             df_clean = df[~summary_mask].copy()
-            if table_name == 'raw_bet_detail':
-                # 投注明细是风控核心原始事实表，不过滤「全零」行，避免把取消/走水/特殊状态注单误删。
-                zero_count = 0
-                df_data = normalize_bet_detail(df_clean, filepath)
-            else:
-                zero_mask = df_clean.apply(lambda row: is_all_zero_data_row(row.values, df_clean.columns), axis=1)
-                zero_count = int(zero_mask.sum())
-                df_data = df_clean[~zero_mask].copy()
+            zero_mask = df_clean.apply(lambda row: is_all_zero_data_row(row.values, df_clean.columns), axis=1)
+            zero_count = int(zero_mask.sum())
+            df_data = df_clean[~zero_mask].copy()
 
             # Add snapshot fields where applicable
             if table_name == 'raw_top_report':
@@ -385,26 +330,14 @@ def process_folder(folder_path: str, dry_run: bool = False):
             actual_uploaded = 0
             if data_rows > 0:
                 try:
-                    if table_name == 'raw_bet_detail':
-                        if '_bet_month' not in df_data.columns or df_data['_bet_month'].isna().all():
-                            raise ValueError('投注记录无法判断月份：请确认栏位「下注时间」存在且可解析')
-                        for month_key, sub_df in df_data.groupby('_bet_month', dropna=True):
-                            if not month_key or str(month_key) == 'nan':
-                                continue
-                            target_table = f'raw_bet_detail_{month_key}'
-                            uploaded = upload_to_bigquery(sub_df, target_table, dry_run=dry_run, source_file=basename)
-                            actual_uploaded += uploaded if not dry_run else len(sub_df)
-                            mode = 'dry-run' if dry_run else ''
-                            print(f'  导入 BigQuery: {target_table} ← {len(sub_df)}行 {mode}✅')
+                    actual_uploaded = upload_to_bigquery(df_data, table_name, dry_run=dry_run, source_file=basename)
+                    mode = 'dry-run' if dry_run else ''
+                    if actual_uploaded == 0 and not dry_run:
+                        # 已被 _check_existing_source_file 跳过
+                        pass  # 警告已经在 upload_to_bigquery 里印过
                     else:
-                        actual_uploaded = upload_to_bigquery(df_data, table_name, dry_run=dry_run, source_file=basename)
-                        mode = 'dry-run' if dry_run else ''
-                        if actual_uploaded == 0 and not dry_run:
-                            # 已被 _check_existing_source_file 跳过
-                            pass  # 警告已经在 upload_to_bigquery 里印过
-                        else:
-                            rows_to_show = data_rows if dry_run else (actual_uploaded or data_rows)
-                            print(f'  导入 BigQuery: {rows_to_show}行 {mode}✅')
+                        rows_to_show = data_rows if dry_run else (actual_uploaded or data_rows)
+                        print(f'  导入 BigQuery: {rows_to_show}行 {mode}✅')
                 except Exception as e:
                     err_msg = str(e)
                     print(f'  导入 BigQuery: ❌ {err_msg[:160]}')
