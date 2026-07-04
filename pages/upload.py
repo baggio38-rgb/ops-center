@@ -1,8 +1,7 @@
 """Data upload page entry point.
 
-This module is intentionally thin in this step: it routes the upload page
-from dashboard.py so the navigation can start using the pages/ package
-without changing upload behavior.
+Thin wrapper that delegates to the upload implementation in dashboard.py.
+Works in both local Streamlit and Streamlit Cloud runtimes.
 """
 
 from __future__ import annotations
@@ -11,8 +10,11 @@ import sys
 
 
 def render_data_upload():
-    app = sys.modules.get("__main__")
-    impl = getattr(app, "_render_data_upload_impl", None)
-    if impl is None:
-        raise RuntimeError("_render_data_upload_impl is not available in the main Streamlit module")
-    return impl()
+    for module_name in ("dashboard", "__main__"):
+        app = sys.modules.get(module_name)
+        if app is None:
+            continue
+        impl = getattr(app, "_render_data_upload_impl", None)
+        if impl is not None:
+            return impl()
+    raise RuntimeError("_render_data_upload_impl is not available in the loaded Streamlit app module")

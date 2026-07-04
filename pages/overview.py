@@ -11,12 +11,16 @@ import sys
 
 
 def _call(name: str):
-    app = sys.modules.get("__main__")
-    impl = getattr(app, name, None)
-    if impl is None:
-        raise RuntimeError(f"{name} is not available in the main Streamlit module")
-    return impl()
-
+    # Streamlit Cloud may load the app as module name "dashboard" instead of "__main__".
+    # Try both names so thin wrappers work in both local and Cloud runtimes.
+    for module_name in ("dashboard", "__main__"):
+        app = sys.modules.get(module_name)
+        if app is None:
+            continue
+        impl = getattr(app, name, None)
+        if impl is not None:
+            return impl()
+    raise RuntimeError(f"{name} is not available in the loaded Streamlit app module")
 
 def render_overview_page():
     return _call('render_overview')
