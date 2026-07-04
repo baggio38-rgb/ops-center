@@ -1,6 +1,7 @@
-"""Core package for legacy shared helpers.
+"""Core compatibility package.
 
-Keep this package initializer intentionally lightweight.
-Do not import legacy.py here, because feature modules import core.legacy
-and eager imports can create circular imports during Streamlit startup.
+Do not import core.legacy here. Importing legacy at package import time creates
+circular imports with feature modules and services.
 """
+
+__all__ = []

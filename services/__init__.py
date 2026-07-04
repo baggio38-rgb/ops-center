@@ -1,4 +1,7 @@
-"""Service layer for Ops Center."""
+"""Service layer for Ops Center.
+
+Services are the data-access layer and must not import core.legacy.
+"""
 
 from .bigquery_client import get_bq_client
 from .loader import latest_imported_at, load_table, query_bq

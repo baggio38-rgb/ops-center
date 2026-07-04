@@ -1849,11 +1849,9 @@ def _fin_withdraw_view(wd):
 
 # 1 finance page implementation moved to features/finance_results.py
 
-# V7.0 hotfix: data admin/upload implementations live in features.upload_admin
-# and features.realtime_health, and are imported by app_pages/data_admin.py.
-# Do not import them here: features.upload_admin imports shared helpers from
-# core.legacy, so importing it from core.legacy creates a circular import during
-# Streamlit startup.
+# V6.5: data admin/upload implementation moved to features.upload_admin.
+# Do not import features.upload_admin here. That creates a circular dependency:
+# features -> core.legacy -> features. Data admin pages import the feature module directly.
 
 def main():
     # 两层导航：大类 → 细项
