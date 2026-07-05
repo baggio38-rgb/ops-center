@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from features.member360 import render_member360
 from features.member_value import (
     render_member_value,
     render_bet_analysis,
@@ -12,6 +13,7 @@ from features.realtime_health import render_realtime
 
 
 MEMBER_VALUE_PAGES = [
+    ("会员360", render_member360),
     ("会员结构 & ARPU", render_member_value),
     ("投注分析", render_bet_analysis),
     ("客服分析", render_cs_analysis),
