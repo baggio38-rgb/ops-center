@@ -10,6 +10,7 @@ from app_pages.finance_results import FINANCE_RESULT_PAGES
 from app_pages.home import HOME_PAGES
 from app_pages.member_value import MEMBER_VALUE_PAGES
 from app_pages.risk_center import RISK_CENTER_PAGES
+from app_pages.worldcup import WORLD_CUP_PAGES
 
 try:
     from version import APP_VERSION, APP_VERSION_DATE
@@ -23,6 +24,7 @@ GROUPS = {
     "🅰️ 财务中心": FINANCE_RESULT_PAGES,
     "👤 会员中心": MEMBER_VALUE_PAGES,
     "🛡 风控中心": RISK_CENTER_PAGES,
+    "⚽ 世界杯专区": WORLD_CUP_PAGES,
     "🅲 代理中心": AGENT_CHANNEL_PAGES,
     "🗂 数据管理": DATA_ADMIN_PAGES,
 }
@@ -98,7 +100,7 @@ def main() -> None:
 
     sub_renderers[sub]()
     st.divider()
-    st.caption(f"博彩智能决策平台 {APP_VERSION}（{APP_VERSION_DATE}）· 首页、总裁驾驶舱、会员中心、风控中心")
+    st.caption(f"博彩智能决策平台 {APP_VERSION}（{APP_VERSION_DATE}）· 首页、总裁驾驶舱、会员中心、风控中心、世界杯专区")
 
 
 if __name__ == "__main__":
