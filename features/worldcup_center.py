@@ -1,6 +1,6 @@
 """世界杯专区。
 
-v1.4.3 World Cup Center
+v1.5.0 World Cup Center
 - 统一世界杯识别规则：必须包含「世界杯2026(在加拿大、墨西哥&美国)」
 - 排除 Panda 注单
 - 修正会员盈亏 / 平台盈亏
@@ -52,7 +52,7 @@ from services.bigquery_client import query_bq
 
 PROJECT = "mydata-494606"
 DATASET = "mydata"
-VERSION = "v1.4.3"
+VERSION = "v1.5.0"
 
 ASSET_LOGO = Path(__file__).resolve().parents[1] / "assets" / "fifa2026_logo.png"
 

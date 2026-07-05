@@ -22,7 +22,7 @@ from services.bigquery_client import query_bq
 
 PROJECT = "mydata-494606"
 DATASET = "mydata"
-VERSION = "v1.3.1"
+VERSION = "v1.5.0"
 
 RISK_ORDER = ["Critical", "High", "Medium", "Low", "Normal"]
 RISK_CN = {
@@ -407,7 +407,7 @@ def _format_money_table(df: pd.DataFrame, money_cols: list[str], pct_cols: list[
 
 def render_home_page() -> None:
     apply_theme()
-    hero("博彩智能决策平台", "首页 · 经营概况 · 风险预警 · 快捷入口", VERSION)
+    hero("亿兆智能决策平台", "首页 · 经营概况 · 风险预警 · 快捷入口", VERSION)
 
     kpi_df = _load_daily_summary()
     trend = _load_daily_trend(14)

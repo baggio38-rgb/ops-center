@@ -1,4 +1,4 @@
-"""博彩智能决策平台共用UI组件。"""
+"""亿兆智能决策平台共用UI组件。"""
 
 from __future__ import annotations
 

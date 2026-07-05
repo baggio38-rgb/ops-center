@@ -1,4 +1,4 @@
-"""博彩智能决策平台主入口。"""
+"""亿兆智能决策平台主入口。"""
 
 from __future__ import annotations
 
@@ -15,8 +15,8 @@ from app_pages.worldcup import WORLD_CUP_PAGES
 try:
     from version import APP_VERSION, APP_VERSION_DATE
 except Exception:
-    APP_VERSION = "v1.3.0"
-    APP_VERSION_DATE = "2026-07-05"
+    APP_VERSION = "v1.5.0"
+    APP_VERSION_DATE = "2026-07-06"
 
 
 GROUPS = {
@@ -32,7 +32,7 @@ GROUPS = {
 
 def _page_style() -> None:
     st.set_page_config(
-        page_title="博彩智能决策平台",
+        page_title="亿兆智能决策平台",
         page_icon="📊",
         layout="wide",
         initial_sidebar_state="collapsed",
@@ -100,7 +100,7 @@ def main() -> None:
 
     sub_renderers[sub]()
     st.divider()
-    st.caption(f"博彩智能决策平台 {APP_VERSION}（{APP_VERSION_DATE}）· 首页、总裁驾驶舱、会员中心、风控中心、世界杯专区")
+    st.caption(f"亿兆智能决策平台 {APP_VERSION}（{APP_VERSION_DATE}）· 首页、总裁驾驶舱、会员中心、风控中心、世界杯专区")
 
 
 if __name__ == "__main__":
