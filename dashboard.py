@@ -10,7 +10,12 @@ from app_pages.finance_results import FINANCE_RESULT_PAGES
 from app_pages.home import HOME_PAGES
 from app_pages.member_value import MEMBER_VALUE_PAGES
 from app_pages.risk_center import RISK_CENTER_PAGES
-from version import APP_VERSION, APP_VERSION_DATE
+
+try:
+    from version import APP_VERSION, APP_VERSION_DATE
+except Exception:
+    APP_VERSION = "v1.3.0"
+    APP_VERSION_DATE = "2026-07-05"
 
 
 GROUPS = {
@@ -68,7 +73,7 @@ def main() -> None:
 
     sub_renderers[sub]()
     st.divider()
-    st.caption(f"博彩智能决策平台 {APP_VERSION}（{APP_VERSION_DATE}）· 当前功能：会员中心、风控中心、首页、总裁驾驶舱")
+    st.caption(f"博彩智能决策平台 {APP_VERSION}（{APP_VERSION_DATE}）· 首页、总裁驾驶舱、会员中心、风控中心")
 
 
 if __name__ == "__main__":
