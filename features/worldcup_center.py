@@ -1,6 +1,6 @@
 """世界杯专区。
 
-v1.4.2 World Cup Center
+v1.4.3 World Cup Center
 - 统一世界杯识别规则：必须包含「世界杯2026(在加拿大、墨西哥&美国)」
 - 排除 Panda 注单
 - 修正会员盈亏 / 平台盈亏
@@ -10,6 +10,7 @@ v1.4.2 World Cup Center
 from __future__ import annotations
 
 from typing import Any
+from pathlib import Path
 
 import pandas as pd
 import plotly.express as px
@@ -51,7 +52,110 @@ from services.bigquery_client import query_bq
 
 PROJECT = "mydata-494606"
 DATASET = "mydata"
-VERSION = "v1.4.2"
+VERSION = "v1.4.3"
+
+ASSET_LOGO = Path(__file__).resolve().parents[1] / "assets" / "fifa2026_logo.png"
+
+WORLD_CUP_THEME_CSS = '''
+<style>
+:root {
+  --wc-black: #07110D;
+  --wc-deep: #0A2E20;
+  --wc-green: #124734;
+  --wc-gold: #D4AF37;
+  --wc-gold-soft: #F4D77B;
+  --wc-text: #F7F7F7;
+  --wc-muted: #C8D5CE;
+  --wc-red: #F87171;
+  --wc-lime: #70E000;
+}
+.block-container {padding-top: 1.1rem; max-width: 1480px;}
+.worldcup-hero {
+  border: 1px solid rgba(244, 215, 123, .42);
+  border-radius: 24px;
+  padding: 24px 26px;
+  margin-bottom: 20px;
+  background:
+    radial-gradient(circle at 12% 10%, rgba(212,175,55,.25), transparent 34%),
+    linear-gradient(135deg, #07110D 0%, #0A2E20 42%, #124734 100%);
+  box-shadow: 0 18px 44px rgba(0,0,0,.26), inset 0 1px 0 rgba(244,215,123,.15);
+}
+.worldcup-hero-wrap {display:flex; align-items:center; gap:22px;}
+.worldcup-hero-logo {width:92px; min-width:92px;}
+.worldcup-hero-title {font-size:32px; font-weight:950; color:#F7F7F7; margin:0 0 5px 0; letter-spacing:.4px;}
+.worldcup-hero-subtitle {color:#C8D5CE; font-size:14px; margin:0;}
+.worldcup-version {
+  display:inline-block; margin-left:10px; padding:4px 10px; border-radius:999px;
+  background:rgba(212,175,55,.16); color:#F4D77B; border:1px solid rgba(244,215,123,.42);
+  font-size:13px; vertical-align:middle;
+}
+.wc-kpi-card {
+  min-height:118px; border:1px solid rgba(244,215,123,.24); border-radius:18px; padding:17px 18px;
+  background:linear-gradient(180deg, rgba(18,71,52,.96), rgba(7,17,13,.98));
+  box-shadow:0 10px 28px rgba(0,0,0,.24), inset 0 1px 0 rgba(244,215,123,.10);
+}
+.wc-kpi-title {font-size:13px; color:#C8D5CE; margin-bottom:10px; display:flex; align-items:center; gap:7px;}
+.wc-kpi-value {font-size:28px; line-height:1.12; font-weight:950; color:#F4D77B;}
+.wc-kpi-note {font-size:12px; color:#C8D5CE; margin-top:9px;}
+.wc-kpi-negative .wc-kpi-value {color:#F87171;}
+.wc-kpi-positive .wc-kpi-value {color:#70E000;}
+.gip-section-title {color:#F4D77B !important;}
+.gip-section-subtitle {color:#C8D5CE !important;}
+.gip-brief {background:linear-gradient(180deg, rgba(18,71,52,.92), rgba(7,17,13,.98)) !important; border:1px solid rgba(244,215,123,.24) !important; color:#F7F7F7 !important;}
+.gip-brief * {color:#F7F7F7 !important;}
+.stDataFrame {border:1px solid rgba(244,215,123,.18); border-radius:14px; overflow:hidden;}
+button[kind="primary"], .stDownloadButton button {background:#124734 !important; color:#F4D77B !important; border:1px solid rgba(244,215,123,.45) !important;}
+</style>
+'''
+
+
+def apply_worldcup_theme() -> None:
+    apply_theme()
+    st.markdown(WORLD_CUP_THEME_CSS, unsafe_allow_html=True)
+
+
+def worldcup_hero(title: str, subtitle: str, version: str = VERSION) -> None:
+    logo_html = ""
+    if ASSET_LOGO.exists():
+        import base64
+        encoded = base64.b64encode(ASSET_LOGO.read_bytes()).decode("ascii")
+        logo_html = f'<img class="worldcup-hero-logo" src="data:image/png;base64,{encoded}" />'
+    else:
+        logo_html = '<div class="worldcup-hero-logo" style="font-size:56px;text-align:center;">🏆</div>'
+    st.markdown(
+        f'''
+        <div class="worldcup-hero">
+          <div class="worldcup-hero-wrap">
+            {logo_html}
+            <div>
+              <div class="worldcup-hero-title">{title}<span class="worldcup-version">{version}</span></div>
+              <p class="worldcup-hero-subtitle">{subtitle}</p>
+            </div>
+          </div>
+        </div>
+        ''',
+        unsafe_allow_html=True,
+    )
+
+
+def wc_metric_card(title: str, value: str, note: str = "", icon: str = "", tone: str = "") -> None:
+    cls = "wc-kpi-card"
+    if tone == "negative":
+        cls += " wc-kpi-negative"
+    elif tone == "positive":
+        cls += " wc-kpi-positive"
+    from html import escape
+    st.markdown(
+        f'''
+        <div class="{cls}">
+          <div class="wc-kpi-title"><span>{escape(icon)}</span><span>{escape(title)}</span></div>
+          <div class="wc-kpi-value">{escape(str(value))}</div>
+          <div class="wc-kpi-note">{escape(str(note))}</div>
+        </div>
+        ''',
+        unsafe_allow_html=True,
+    )
+
 WORLD_CUP_KEYWORD = "世界杯2026(在加拿大、墨西哥&美国)"
 
 # 注意：总览必须与 BigQuery 验证 SQL 一致。
@@ -397,8 +501,8 @@ def _format_money_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def render_worldcup_overview() -> None:
-    apply_theme()
-    hero("⚽ 世界杯专区", "世界杯投注、赛事、玩家与平台盈亏监控", VERSION)
+    apply_worldcup_theme()
+    worldcup_hero("世界杯专区", "世界杯投注、赛事、玩家与平台盈亏监控", VERSION)
 
     summary_df = _load_summary()
     if summary_df.empty:
@@ -409,17 +513,17 @@ def render_worldcup_overview() -> None:
     s = summary_df.iloc[0]
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     with c1:
-        metric_card("总流水", _fmt_num(s.get("turnover")), "世界杯投注总下注金额", icon="💰")
+        wc_metric_card("总流水", _fmt_num(s.get("turnover")), "世界杯投注总下注金额", icon="💰")
     with c2:
-        metric_card("有效投注", _fmt_num(s.get("valid_turnover")), "可用于盈亏分析", icon="🎯")
+        wc_metric_card("有效投注", _fmt_num(s.get("valid_turnover")), "可用于盈亏分析", icon="🎯")
     with c3:
-        metric_card("会员盈亏", _fmt_num(s.get("member_profit_loss")), "正数=会员赢，负数=会员输", icon="👤")
+        wc_metric_card("会员盈亏", _fmt_num(s.get("member_profit_loss")), "正数=会员赢，负数=会员输", icon="👤", tone="negative" if float(s.get("member_profit_loss") or 0) < 0 else "positive")
     with c4:
-        metric_card("平台盈亏", _fmt_num(s.get("platform_profit_loss")), "正数=平台赢，负数=平台输", icon="🏦")
+        wc_metric_card("平台盈亏", _fmt_num(s.get("platform_profit_loss")), "正数=平台赢，负数=平台输", icon="🏦", tone="positive" if float(s.get("platform_profit_loss") or 0) >= 0 else "negative")
     with c5:
-        metric_card("投注会员", _fmt_num(s.get("members")), "参与世界杯投注会员", icon="👥")
+        wc_metric_card("投注会员", _fmt_num(s.get("members")), "参与世界杯投注会员", icon="👥")
     with c6:
-        metric_card("RTP", _fmt_pct(s.get("rtp")), "会员盈亏 / 有效投注", icon="⚠️")
+        wc_metric_card("RTP", _fmt_pct(s.get("rtp")), "会员盈亏 / 有效投注", icon="⚠️", tone="negative" if float(s.get("rtp") or 0) > 0 else "positive")
 
     section("AI经营摘要", "规则版摘要，后续可接入 AI 助手。")
     brief(_summary_brief(s))
@@ -438,8 +542,8 @@ def render_worldcup_overview() -> None:
                 "member_profit_loss": "会员盈亏",
                 "platform_profit_loss": "平台盈亏",
             })
-            fig = px.line(chart_df, x="report_date", y=["流水", "有效投注", "会员盈亏", "平台盈亏"], markers=True)
-            fig.update_layout(height=380, legend_title_text="指标")
+            fig = px.line(chart_df, x="report_date", y=["流水", "有效投注", "会员盈亏", "平台盈亏"], markers=True, color_discrete_map={"流水":"#D4AF37","有效投注":"#70E000","会员盈亏":"#F87171","平台盈亏":"#F4D77B"})
+            fig.update_layout(height=380, legend_title_text="指标", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={"color":"#F7F7F7"})
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("暂无每日走势资料。")
@@ -483,8 +587,8 @@ def render_worldcup_overview() -> None:
 
 
 def render_match_monitor() -> None:
-    apply_theme()
-    hero("⚽ 比赛监控", "逐场查看流水、玩法、会员与近期注单", VERSION)
+    apply_worldcup_theme()
+    worldcup_hero("比赛监控", "逐场查看流水、玩法、会员与近期注单", VERSION)
 
     matches_all = _load_matches(limit=500)
     if matches_all.empty:
@@ -504,17 +608,17 @@ def render_match_monitor() -> None:
             row = one.iloc[0]
             c1, c2, c3, c4, c5, c6 = st.columns(6)
             with c1:
-                metric_card("流水", _fmt_num(row.get("turnover")), icon="💰")
+                wc_metric_card("流水", _fmt_num(row.get("turnover")), icon="💰")
             with c2:
-                metric_card("有效投注", _fmt_num(row.get("valid_turnover")), icon="🎯")
+                wc_metric_card("有效投注", _fmt_num(row.get("valid_turnover")), icon="🎯")
             with c3:
-                metric_card("会员盈亏", _fmt_num(row.get("member_profit_loss")), icon="👤")
+                wc_metric_card("会员盈亏", _fmt_num(row.get("member_profit_loss")), icon="👤", tone="negative" if float(row.get("member_profit_loss") or 0) < 0 else "positive")
             with c4:
-                metric_card("平台盈亏", _fmt_num(row.get("platform_profit_loss")), icon="🏦")
+                wc_metric_card("平台盈亏", _fmt_num(row.get("platform_profit_loss")), icon="🏦", tone="positive" if float(row.get("platform_profit_loss") or 0) >= 0 else "negative")
             with c5:
-                metric_card("投注会员", _fmt_num(row.get("members")), icon="👥")
+                wc_metric_card("投注会员", _fmt_num(row.get("members")), icon="👥")
             with c6:
-                metric_card("RTP", _fmt_pct(row.get("rtp")), icon="⚠️")
+                wc_metric_card("RTP", _fmt_pct(row.get("rtp")), icon="⚠️", tone="negative" if float(row.get("rtp") or 0) > 0 else "positive")
 
     play_df = _load_play_types(selected)
     players_df = _load_players(selected, limit=50)
@@ -524,8 +628,8 @@ def render_match_monitor() -> None:
     if not play_df.empty:
         left, right = st.columns([1, 1])
         with left:
-            fig = px.bar(play_df.head(15), x="valid_turnover", y="play_type", orientation="h", text="valid_turnover")
-            fig.update_layout(height=430, yaxis={"categoryorder": "total ascending"})
+            fig = px.bar(play_df.head(15), x="valid_turnover", y="play_type", orientation="h", text="valid_turnover", color_discrete_sequence=["#D4AF37"])
+            fig.update_layout(height=430, yaxis={"categoryorder": "total ascending"}, paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={"color":"#F7F7F7"})
             st.plotly_chart(fig, use_container_width=True)
         with right:
             show = play_df.rename(columns={
@@ -556,8 +660,8 @@ def render_match_monitor() -> None:
 
 
 def render_worldcup_database() -> None:
-    apply_theme()
-    hero("⚽ 世界杯资料库", "小组赛到冠军赛，每场投注数据总表", VERSION)
+    apply_worldcup_theme()
+    worldcup_hero("世界杯资料库", "小组赛到冠军赛，每场投注数据总表", VERSION)
 
     matches = _load_matches(limit=1000)
     if matches.empty:
@@ -587,8 +691,8 @@ def render_worldcup_database() -> None:
 
 
 def render_worldcup_players() -> None:
-    apply_theme()
-    hero("⚽ 世界杯玩家分析", "世界杯会员排行、代理贡献与风险线索", VERSION)
+    apply_worldcup_theme()
+    worldcup_hero("世界杯玩家分析", "世界杯会员排行、代理贡献与风险线索", VERSION)
 
     players = _load_players(None, limit=100)
     if players.empty:
@@ -597,13 +701,13 @@ def render_worldcup_players() -> None:
 
     c1, c2, c3, c4 = st.columns(4)
     with c1:
-        metric_card("投注会员", _fmt_num(players["会员账号"].nunique()), "世界杯参与会员", icon="👥")
+        wc_metric_card("投注会员", _fmt_num(players["会员账号"].nunique()), "世界杯参与会员", icon="👥")
     with c2:
-        metric_card("Top100流水", _fmt_num(players["有效投注"].sum()), "前100会员有效投注", icon="🏆")
+        wc_metric_card("Top100流水", _fmt_num(players["有效投注"].sum()), "前100会员有效投注", icon="🏆")
     with c3:
-        metric_card("Top会员RTP", _fmt_pct(players["RTP"].max()), "最高RTP会员", icon="⚠️")
+        wc_metric_card("Top会员RTP", _fmt_pct(players["RTP"].max()), "最高RTP会员", icon="⚠️")
     with c4:
-        metric_card("Top会员盈亏", _fmt_num(players["会员盈亏"].max()), "会员最高盈利", icon="🔥")
+        wc_metric_card("Top会员盈亏", _fmt_num(players["会员盈亏"].max()), "会员最高盈利", icon="🔥")
 
     section("世界杯会员Top100", "可用于VIP运营与风控初筛。")
     st.dataframe(_format_money_columns(players), use_container_width=True, hide_index=True)
@@ -619,8 +723,8 @@ def render_worldcup_players() -> None:
 
 
 def render_worldcup_rules() -> None:
-    apply_theme()
-    hero("⚽ 世界杯识别规则", "说明系统如何从投注记录识别世界杯注单", VERSION)
+    apply_worldcup_theme()
+    worldcup_hero("世界杯识别规则", "说明系统如何从投注记录识别世界杯注单", VERSION)
 
     section("当前识别规则")
     st.markdown(
