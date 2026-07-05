@@ -1,8 +1,6 @@
 """Ops Center main entry point.
 
-v6.0 keeps dashboard.py as a small navigation shell. Logical page groups live
-under app_pages/ and the heavy implementation still lives in ops_core.py for
-this stage. No page uses sys.modules["__main__"].
+Small navigation shell. Logical page groups live under app_pages/.
 """
 
 from __future__ import annotations
@@ -13,12 +11,14 @@ from app_pages.agent_channel import AGENT_CHANNEL_PAGES
 from app_pages.data_admin import DATA_ADMIN_PAGES
 from app_pages.finance_results import FINANCE_RESULT_PAGES
 from app_pages.member_value import MEMBER_VALUE_PAGES
+from app_pages.risk_center import RISK_CENTER_PAGES
 from version import APP_VERSION, APP_VERSION_DATE
 
 
 GROUPS = {
     "🅰️ 财务结果": FINANCE_RESULT_PAGES,
     "🅱️ 会员价值": MEMBER_VALUE_PAGES,
+    "🛡 风控中心": RISK_CENTER_PAGES,
     "🅲 代理 / 渠道": AGENT_CHANNEL_PAGES,
     "🗂 数据上传": DATA_ADMIN_PAGES,
 }
