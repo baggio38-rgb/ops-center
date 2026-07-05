@@ -40,6 +40,31 @@ def _page_style() -> None:
         <style>
         .block-container {padding-top: 1.2rem; padding-bottom: 2rem;}
         div[data-testid="stHorizontalBlock"] {gap: 0.75rem;}
+        /* v1.3.1 hotfix: 顶部导航文字被切掉 */
+        div[data-testid="stRadio"] [role="radiogroup"] {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+            flex-wrap: wrap;
+            min-height: 48px;
+            overflow: visible;
+            padding: 4px 0 6px 0;
+        }
+        div[data-testid="stRadio"] label {
+            min-height: 36px !important;
+            height: auto !important;
+            display: flex !important;
+            align-items: center !important;
+            overflow: visible !important;
+            padding: 5px 6px !important;
+            white-space: nowrap !important;
+        }
+        div[data-testid="stRadio"] label p {
+            line-height: 1.35 !important;
+            margin: 0 !important;
+            overflow: visible !important;
+            white-space: nowrap !important;
+        }
         </style>
         """,
         unsafe_allow_html=True,

@@ -38,15 +38,33 @@ div[data-testid="stHorizontalBlock"] {gap: .85rem;}
 .gip-delta-up {color:#16a34a; font-weight:800;}
 .gip-delta-down {color:#dc2626; font-weight:800;}
 .gip-delta-flat {color:#64748b; font-weight:800;}
-.gip-section-title {margin-top: 18px; margin-bottom: 8px; font-size: 22px; font-weight: 900; color:#0f172a;}
-.gip-section-subtitle {margin-top: -4px; margin-bottom: 13px; color:#64748b; font-size: 13px;}
+.gip-section-title {margin-top: 18px; margin-bottom: 8px; font-size: 22px; font-weight: 900; color:#e6f0ff;}
+.gip-section-subtitle {margin-top: -4px; margin-bottom: 13px; color:#a8b3c7; font-size: 13px;}
 .gip-alert {
   border-radius: 14px;
   padding: 12px 14px;
   margin-bottom: 9px;
   border: 1px solid #e5e7eb;
-  background: #fff;
+  background: #ffffff;
+  color: #111827;
+  font-weight: 700;
+  box-shadow: 0 1px 8px rgba(15, 23, 42, .08);
 }
+.gip-alert span, .gip-alert div, .gip-alert p {color:#111827 !important;}
+.gip-quick-card {
+  border-radius: 14px;
+  padding: 16px 18px;
+  min-height: 116px;
+  color: #e6f0ff;
+  border: 1px solid rgba(226, 232, 240, .18);
+  box-shadow: 0 6px 20px rgba(0,0,0,.12);
+}
+.gip-quick-card h4 {margin:0 0 10px 0; color:#ffffff; font-size:16px; font-weight:900;}
+.gip-quick-card p {margin:0; color:#e6f0ff; line-height:1.65; font-size:14px;}
+.gip-quick-green {background: linear-gradient(135deg, #065f46 0%, #166534 100%);}
+.gip-quick-yellow {background: linear-gradient(135deg, #713f12 0%, #854d0e 100%);}
+.gip-quick-blue {background: linear-gradient(135deg, #0f3b66 0%, #1e3a8a 100%);}
+.gip-quick-gray {background: linear-gradient(135deg, #1f2937 0%, #374151 100%);}
 .gip-alert-critical {border-left: 5px solid #dc2626;}
 .gip-alert-warning {border-left: 5px solid #f59e0b;}
 .gip-alert-good {border-left: 5px solid #16a34a;}

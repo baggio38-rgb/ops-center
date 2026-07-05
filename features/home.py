@@ -22,7 +22,7 @@ from services.bigquery_client import query_bq
 
 PROJECT = "mydata-494606"
 DATASET = "mydata"
-VERSION = "v1.3.0"
+VERSION = "v1.3.1"
 
 RISK_ORDER = ["Critical", "High", "Medium", "Low", "Normal"]
 RISK_CN = {
@@ -287,13 +287,13 @@ def _load_provider_analysis(limit: int = 12) -> pd.DataFrame:
 @st.cache_data(ttl=300, show_spinner=False)
 def _load_table_status() -> pd.DataFrame:
     sql = f"""
-    SELECT 'fact_member_daily_v2' AS `数据表`, COUNT(*) AS `行数`, MAX(updated_at) AS `更新时间`
+    SELECT 'fact_member_daily_v2' AS `数据表`, COUNT(*) AS `行数`, CAST(MAX(updated_at) AS STRING) AS `更新时间`
     FROM `{PROJECT}.{DATASET}.fact_member_daily_v2`
     UNION ALL
-    SELECT 'mart_member_profile', COUNT(*), MAX(updated_at)
+    SELECT 'mart_member_profile', COUNT(*), CAST(MAX(updated_at) AS STRING)
     FROM `{PROJECT}.{DATASET}.mart_member_profile`
     UNION ALL
-    SELECT 'risk_member_score', COUNT(*), MAX(updated_at)
+    SELECT 'risk_member_score', COUNT(*), '无更新时间字段'
     FROM `{PROJECT}.{DATASET}.risk_member_score`
     """
     return _safe_query(sql)
@@ -447,14 +447,18 @@ def render_home_page() -> None:
 
     section("快捷入口")
     c1, c2, c3, c4 = st.columns(4)
-    with c1:
-        st.success("会员中心\n\n搜索会员、查看画像、投注偏好与近期注单。")
-    with c2:
-        st.warning("风控中心\n\n查看高风险会员、风险等级与命中规则。")
-    with c3:
-        st.info("总裁驾驶舱\n\n查看平台经营趋势、风险排行与经营摘要。")
-    with c4:
-        st.write("版本信息\n\n查看当前版本、数据来源与更新说明。")
+    quick_cards = [
+        (c1, "会员中心", "搜索会员、查看画像、投注偏好与近期注单。", "gip-quick-green"),
+        (c2, "风控中心", "查看高风险会员、风险等级与命中规则。", "gip-quick-yellow"),
+        (c3, "总裁驾驶舱", "查看平台经营趋势、风险排行与经营摘要。", "gip-quick-blue"),
+        (c4, "版本信息", "查看当前版本、数据来源与更新说明。", "gip-quick-gray"),
+    ]
+    for col, title, text, cls in quick_cards:
+        with col:
+            st.markdown(
+                f'<div class="gip-quick-card {cls}"><h4>{title}</h4><p>{text}</p></div>',
+                unsafe_allow_html=True,
+            )
 
     section("系统状态")
     status = _load_table_status()
