@@ -1,6 +1,6 @@
 """世界杯专区。
 
-v1.6.1 World Cup Center
+v2.0.0 World Cup Engine
 - 统一世界杯识别规则：必须包含「世界杯2026(在加拿大、墨西哥&美国)」
 - 排除 Panda 注单
 - 修正会员盈亏 / 平台盈亏
@@ -52,7 +52,7 @@ from services.bigquery_client import query_bq
 
 PROJECT = "mydata-494606"
 DATASET = "mydata"
-VERSION = "v1.6.1"
+VERSION = "v2.0.0"
 
 ASSET_LOGO = Path(__file__).resolve().parents[1] / "assets" / "fifa2026_logo.png"
 
@@ -166,7 +166,7 @@ AND CAST(`投注详情` AS STRING) LIKE '%{WORLD_CUP_KEYWORD}%'
 AND LOWER(CAST(`投注详情` AS STRING)) NOT LIKE '%panda%'
 """
 
-WORLD_CUP_BASE = f"""
+WORLD_CUP_BASE = rf"""
 WITH raw AS (
   SELECT
     TRIM(CAST(`会员账号` AS STRING)) AS member_id,
@@ -178,7 +178,7 @@ WITH raw AS (
     TRIM(CAST(`盘口` AS STRING)) AS handicap,
     TRIM(CAST(`状态` AS STRING)) AS bet_status,
     TRIM(CAST(`投注详情` AS STRING)) AS bet_detail,
-    REGEXP_REPLACE(REPLACE(TRIM(CAST(`投注详情` AS STRING)), '_x000D_', '\n'), r'\r', '') AS clean_detail,
+    REGEXP_REPLACE(REPLACE(TRIM(CAST(`投注详情` AS STRING)), '_x000D_', '\\n'), r'\\r', '') AS clean_detail,
     SAFE_CAST(`下注金额` AS FLOAT64) AS turnover,
     SAFE_CAST(`有效投注` AS FLOAT64) AS valid_turnover,
     SAFE_CAST(`盈亏` AS FLOAT64) AS profit_loss,
