@@ -1,8 +1,23 @@
-"""亿兆智能决策平台主入口。"""
+"""亿兆智能决策平台 Enterprise UI 主入口。"""
 
 from __future__ import annotations
 
 import streamlit as st
+
+try:
+    from version import APP_NAME, APP_VERSION, APP_VERSION_DATE, APP_SUBTITLE
+except Exception:
+    APP_NAME = "亿兆智能决策平台"
+    APP_VERSION = "v4.0.0"
+    APP_VERSION_DATE = "2026-07-07"
+    APP_SUBTITLE = "Enterprise Intelligence Platform"
+
+st.set_page_config(
+    page_title=APP_NAME,
+    page_icon="📊",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
 
 from app_pages.agent_channel import AGENT_CHANNEL_PAGES
 from app_pages.data_admin import DATA_ADMIN_PAGES
@@ -13,94 +28,104 @@ from app_pages.risk_center import RISK_CENTER_PAGES
 from app_pages.worldcup import WORLD_CUP_PAGES
 
 try:
-    from version import APP_VERSION, APP_VERSION_DATE
+    from components.ui import apply_theme, enterprise_header, sidebar_brand, footer
 except Exception:
-    APP_VERSION = "v1.6.0"
-    APP_VERSION_DATE = "2026-07-06"
+    apply_theme = None
+    enterprise_header = None
+    sidebar_brand = None
+    footer = None
 
 
-GROUPS = {
+NAV_GROUPS = {
     "🏠 首页": HOME_PAGES,
-    "🅰️ 财务中心": FINANCE_RESULT_PAGES,
-    "👤 会员中心": MEMBER_VALUE_PAGES,
+    "💰 财务中心": FINANCE_RESULT_PAGES,
+    "👥 会员中心": MEMBER_VALUE_PAGES,
     "🛡 风控中心": RISK_CENTER_PAGES,
     "⚽ 世界杯专区": WORLD_CUP_PAGES,
-    "🅲 代理中心": AGENT_CHANNEL_PAGES,
-    "🗂 数据管理": DATA_ADMIN_PAGES,
+    "🧭 代理中心": AGENT_CHANNEL_PAGES,
+    "📂 数据中心": DATA_ADMIN_PAGES,
 }
 
 
-def _page_style() -> None:
-    st.set_page_config(
-        page_title="亿兆智能决策平台",
-        page_icon="📊",
-        layout="wide",
-        initial_sidebar_state="collapsed",
-    )
-    st.markdown(
-        """
-        <style>
-        .block-container {padding-top: 1.2rem; padding-bottom: 2rem;}
-        div[data-testid="stHorizontalBlock"] {gap: 0.75rem;}
-        /* v1.3.1 hotfix: 顶部导航文字被切掉 */
-        div[data-testid="stRadio"] [role="radiogroup"] {
-            display: flex;
-            align-items: center;
-            gap: 14px;
-            flex-wrap: wrap;
-            min-height: 48px;
-            overflow: visible;
-            padding: 4px 0 6px 0;
-        }
-        div[data-testid="stRadio"] label {
-            min-height: 36px !important;
-            height: auto !important;
-            display: flex !important;
-            align-items: center !important;
-            overflow: visible !important;
-            padding: 5px 6px !important;
-            white-space: nowrap !important;
-        }
-        div[data-testid="stRadio"] label p {
-            line-height: 1.35 !important;
-            margin: 0 !important;
-            overflow: visible !important;
-            white-space: nowrap !important;
-        }
-        </style>
-        """,
-        unsafe_allow_html=True,
-    )
+def _safe_apply_theme() -> None:
+    if apply_theme:
+        apply_theme()
+    else:
+        st.markdown(
+            """
+            <style>
+            .block-container {max-width: 1680px; padding-top: 1.15rem; padding-bottom: 2rem;}
+            </style>
+            """,
+            unsafe_allow_html=True,
+        )
+
+
+def _render_sidebar() -> tuple[str, str]:
+    with st.sidebar:
+        if sidebar_brand:
+            sidebar_brand(APP_NAME, APP_SUBTITLE, APP_VERSION)
+        else:
+            st.markdown(f"### {APP_NAME}")
+            st.caption(f"{APP_SUBTITLE} · {APP_VERSION}")
+
+        group = st.radio(
+            "功能模块",
+            list(NAV_GROUPS.keys()),
+            label_visibility="collapsed",
+            key="enterprise_nav_group",
+        )
+
+        st.markdown('<div class="yz-side-divider"></div>', unsafe_allow_html=True)
+
+        sub_options = [name for name, _ in NAV_GROUPS[group]]
+        sub = st.radio(
+            "页面",
+            sub_options,
+            label_visibility="collapsed",
+            key=f"enterprise_nav_sub_{group}",
+        )
+
+        st.markdown('<div class="yz-side-spacer"></div>', unsafe_allow_html=True)
+        st.markdown(
+            f"""
+            <div class="yz-side-status">
+              <div class="yz-side-status-title">系统状态</div>
+              <div><span class="yz-dot yz-dot-ok"></span> BigQuery 正常</div>
+              <div><span class="yz-dot yz-dot-ok"></span> ETL 正常</div>
+              <div><span class="yz-dot yz-dot-ok"></span> 数据同步</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        return group, sub
 
 
 def main() -> None:
-    """渲染中文顶部导航并调用页面。"""
-    _page_style()
+    _safe_apply_theme()
+    group, sub = _render_sidebar()
 
-    group = st.radio(
-        "大类",
-        list(GROUPS.keys()),
-        horizontal=True,
-        label_visibility="collapsed",
-        key="nav_group",
-    )
+    if enterprise_header:
+        enterprise_header(
+            title=APP_NAME,
+            subtitle=APP_SUBTITLE,
+            version=APP_VERSION,
+            date=APP_VERSION_DATE,
+            active_group=group,
+            active_page=sub,
+        )
+    else:
+        st.title(APP_NAME)
+        st.caption(f"{APP_SUBTITLE} · {APP_VERSION} · {APP_VERSION_DATE}")
 
-    sub_options = [name for name, _ in GROUPS[group]]
-    sub_renderers = {name: fn for name, fn in GROUPS[group]}
+    renderer = {name: fn for name, fn in NAV_GROUPS[group]}[sub]
+    renderer()
 
-    st.markdown('<div style="height:0.4rem;"></div>', unsafe_allow_html=True)
-
-    sub = st.radio(
-        "细项",
-        sub_options,
-        horizontal=True,
-        label_visibility="collapsed",
-        key=f"nav_sub_{group}",
-    )
-
-    sub_renderers[sub]()
-    st.divider()
-    st.caption(f"亿兆智能决策平台 {APP_VERSION}（{APP_VERSION_DATE}）· Dashboard、Member360、风控中心、世界杯作战中心")
+    if footer:
+        footer(APP_NAME, APP_VERSION, APP_VERSION_DATE)
+    else:
+        st.divider()
+        st.caption(f"{APP_NAME} {APP_VERSION}（{APP_VERSION_DATE}）")
 
 
 if __name__ == "__main__":
