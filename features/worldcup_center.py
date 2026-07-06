@@ -52,7 +52,7 @@ from services.bigquery_client import query_bq
 
 PROJECT = "mydata-494606"
 DATASET = "mydata"
-VERSION = "v1.5.0"
+VERSION = "v1.6.0"
 
 ASSET_LOGO = Path(__file__).resolve().parents[1] / "assets" / "fifa2026_logo.png"
 
@@ -658,6 +658,171 @@ def render_match_monitor() -> None:
     else:
         st.info("暂无近期注单。")
 
+
+
+
+def _load_stage_matches(stage: str, limit: int = 500) -> pd.DataFrame:
+    return _load_matches(stage=stage, limit=limit)
+
+
+def _render_match_table(df: pd.DataFrame) -> None:
+    if df.empty:
+        st.info("暂无比赛资料。")
+        return
+    show = df.rename(columns={
+        "match_stage": "阶段",
+        "match_name": "赛事",
+        "match_time": "开赛时间",
+        "bet_count": "注单数",
+        "members": "会员数",
+        "turnover": "流水",
+        "valid_turnover": "有效投注",
+        "member_profit_loss": "会员盈亏",
+        "platform_profit_loss": "平台盈亏",
+        "avg_bet": "平均下注",
+        "rtp": "RTP",
+    })
+    st.dataframe(_format_money_columns(show), use_container_width=True, hide_index=True)
+
+
+def render_worldcup_schedule_center() -> None:
+    """世界杯赛程中心：从小组赛到冠军赛按阶段查看每场数据。"""
+    apply_worldcup_theme()
+    worldcup_hero("赛程中心", "小组赛到冠军赛，每场比赛投注数据一站查看", VERSION)
+
+    matches_all = _load_matches(limit=1200)
+    if matches_all.empty:
+        alert("暂无世界杯比赛资料。", "warning")
+        return
+
+    stage_order = ["小组赛", "32强", "16强", "8强", "半决赛", "季军赛", "冠军赛", "串关/多场", "未识别阶段"]
+    available = [x for x in stage_order if x in set(matches_all["match_stage"].astype(str))]
+    if not available:
+        available = sorted(matches_all["match_stage"].dropna().astype(str).unique().tolist())
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        wc_metric_card("赛事数", _fmt_num(matches_all["match_name"].nunique()), "已识别世界杯赛事", icon="🏟️")
+    with c2:
+        wc_metric_card("阶段数", _fmt_num(len(available)), "小组赛至冠军赛", icon="🧭")
+    with c3:
+        wc_metric_card("最高流水", _fmt_num(matches_all["valid_turnover"].max()), "单场最高有效投注", icon="🔥")
+    with c4:
+        top_profit = matches_all["platform_profit_loss"].max() if "platform_profit_loss" in matches_all else 0
+        wc_metric_card("最高平台盈亏", _fmt_num(top_profit), "单场平台盈利最高", icon="🏦", tone="positive" if float(top_profit or 0) >= 0 else "negative")
+
+    section("阶段导航", "点击不同阶段查看该阶段所有比赛。")
+    selected_stage = st.radio("阶段", available, horizontal=True, label_visibility="collapsed", key="wc_stage_nav")
+    stage_df = matches_all[matches_all["match_stage"].astype(str) == selected_stage].copy()
+
+    if selected_stage == "小组赛":
+        st.caption("目前按投注资料中的赛事与开赛时间自动汇总；后续可接 dim_worldcup_match 后显示 A组~H组。")
+        q = st.text_input("搜索小组赛赛事", "", key="wc_group_search")
+        if q.strip():
+            stage_df = stage_df[stage_df["match_name"].astype(str).str.contains(q.strip(), case=False, na=False)]
+
+    _render_match_table(stage_df)
+
+    section("比赛快速查看", "选择一场比赛，立即展开玩法与会员排行。")
+    match_options = stage_df["match_name"].dropna().astype(str).tolist()
+    if match_options:
+        selected_match = st.selectbox("选择比赛", match_options, key="wc_schedule_match")
+        one = stage_df[stage_df["match_name"].astype(str) == selected_match]
+        if not one.empty:
+            row = one.iloc[0]
+            c1, c2, c3, c4, c5, c6 = st.columns(6)
+            with c1:
+                wc_metric_card("流水", _fmt_num(row.get("turnover")), icon="💰")
+            with c2:
+                wc_metric_card("有效投注", _fmt_num(row.get("valid_turnover")), icon="🎯")
+            with c3:
+                wc_metric_card("会员盈亏", _fmt_num(row.get("member_profit_loss")), icon="👤", tone="negative" if float(row.get("member_profit_loss") or 0) < 0 else "positive")
+            with c4:
+                wc_metric_card("平台盈亏", _fmt_num(row.get("platform_profit_loss")), icon="🏦", tone="positive" if float(row.get("platform_profit_loss") or 0) >= 0 else "negative")
+            with c5:
+                wc_metric_card("投注会员", _fmt_num(row.get("members")), icon="👥")
+            with c6:
+                wc_metric_card("RTP", _fmt_pct(row.get("rtp")), icon="⚠️", tone="negative" if float(row.get("rtp") or 0) > 0 else "positive")
+
+            play_df = _load_play_types(selected_match)
+            if not play_df.empty:
+                section("玩法分析", "当前比赛各玩法资金与盈亏。")
+                show_play = play_df.rename(columns={
+                    "play_type": "玩法",
+                    "bet_count": "注单数",
+                    "members": "会员数",
+                    "turnover": "流水",
+                    "valid_turnover": "有效投注",
+                    "member_profit_loss": "会员盈亏",
+                    "platform_profit_loss": "平台盈亏",
+                    "rtp": "RTP",
+                })
+                st.dataframe(_format_money_columns(show_play), use_container_width=True, hide_index=True)
+
+
+def render_worldcup_war_room() -> None:
+    """世界杯战情室：快速找出最高流水、最高风险和需要关注的比赛。"""
+    apply_worldcup_theme()
+    worldcup_hero("世界杯战情室", "高流水、高RTP、平台盈亏与热门赛事即时雷达", VERSION)
+
+    summary_df = _load_summary()
+    matches = _load_matches(limit=500)
+    daily = _load_daily()
+    if summary_df.empty or matches.empty:
+        alert("暂无世界杯战情资料。", "warning")
+        return
+
+    s = summary_df.iloc[0]
+    high_rtp = matches.sort_values("rtp", ascending=False).head(1)
+    high_turnover = matches.sort_values("valid_turnover", ascending=False).head(1)
+    high_profit = matches.sort_values("platform_profit_loss", ascending=False).head(1)
+    high_loss = matches.sort_values("platform_profit_loss", ascending=True).head(1)
+
+    def _name(df: pd.DataFrame, fallback: str = "-") -> str:
+        return fallback if df.empty else str(df.iloc[0].get("match_name") or fallback)
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    with c1:
+        wc_metric_card("世界杯注单", _fmt_num(s.get("bet_count")), "累计注单", icon="🎟️")
+    with c2:
+        wc_metric_card("投注会员", _fmt_num(s.get("members")), "参与会员", icon="👥")
+    with c3:
+        wc_metric_card("最高流水", _name(high_turnover), _fmt_num(high_turnover.iloc[0].get("valid_turnover")) if not high_turnover.empty else "-", icon="🔥")
+    with c4:
+        wc_metric_card("平台盈利最高", _name(high_profit), _fmt_num(high_profit.iloc[0].get("platform_profit_loss")) if not high_profit.empty else "-", icon="🏦", tone="positive")
+    with c5:
+        wc_metric_card("平台亏损最高", _name(high_loss), _fmt_num(high_loss.iloc[0].get("platform_profit_loss")) if not high_loss.empty else "-", icon="🚨", tone="negative")
+
+    section("AI战情摘要", "规则版，先用于营运巡检。")
+    notes = []
+    if not high_turnover.empty:
+        notes.append(f"最高流水赛事为「{_name(high_turnover)}」，有效投注 {_fmt_num(high_turnover.iloc[0].get('valid_turnover'))}。")
+    if not high_loss.empty and float(high_loss.iloc[0].get("platform_profit_loss") or 0) < 0:
+        notes.append(f"平台亏损最高赛事为「{_name(high_loss)}」，平台盈亏 {_fmt_num(high_loss.iloc[0].get('platform_profit_loss'))}，建议查看玩法与会员排行。")
+    if not high_rtp.empty and float(high_rtp.iloc[0].get("rtp") or 0) > 0:
+        notes.append(f"最高 RTP 赛事为「{_name(high_rtp)}」，RTP {_fmt_pct(high_rtp.iloc[0].get('rtp'))}，建议纳入风控观察。")
+    if not notes:
+        notes.append("目前未发现明显异常，建议持续观察高流水赛事与VIP下注。")
+    brief(notes)
+
+    left, right = st.columns([1, 1])
+    with left:
+        section("TOP10 流水赛事", "按有效投注排序。")
+        _render_match_table(matches.sort_values("valid_turnover", ascending=False).head(10))
+    with right:
+        section("TOP10 平台盈亏赛事", "平台盈利与亏损两端都需要关注。")
+        top_profit_loss = pd.concat([
+            matches.sort_values("platform_profit_loss", ascending=False).head(5),
+            matches.sort_values("platform_profit_loss", ascending=True).head(5),
+        ]).drop_duplicates(subset=["match_stage", "match_name"])
+        _render_match_table(top_profit_loss)
+
+    section("每日投注热度", "观察世界杯资金流入节奏。")
+    if not daily.empty:
+        chart_df = daily.rename(columns={"valid_turnover": "有效投注", "platform_profit_loss": "平台盈亏", "member_profit_loss": "会员盈亏"})
+        fig = px.line(chart_df, x="report_date", y=["有效投注", "平台盈亏", "会员盈亏"], markers=True, color_discrete_map={"有效投注":"#D4AF37","平台盈亏":"#70E000","会员盈亏":"#F87171"})
+        fig.update_layout(height=360, legend_title_text="指标", paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(0,0,0,0)", font={"color":"#F7F7F7"})
+        st.plotly_chart(fig, use_container_width=True)
 
 def render_worldcup_database() -> None:
     apply_worldcup_theme()

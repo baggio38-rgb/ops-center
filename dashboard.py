@@ -15,7 +15,7 @@ from app_pages.worldcup import WORLD_CUP_PAGES
 try:
     from version import APP_VERSION, APP_VERSION_DATE
 except Exception:
-    APP_VERSION = "v1.5.0"
+    APP_VERSION = "v1.6.0"
     APP_VERSION_DATE = "2026-07-06"
 
 
@@ -100,7 +100,7 @@ def main() -> None:
 
     sub_renderers[sub]()
     st.divider()
-    st.caption(f"亿兆智能决策平台 {APP_VERSION}（{APP_VERSION_DATE}）· 首页、总裁驾驶舱、会员中心、风控中心、世界杯专区")
+    st.caption(f"亿兆智能决策平台 {APP_VERSION}（{APP_VERSION_DATE}）· Dashboard、Member360、风控中心、世界杯作战中心")
 
 
 if __name__ == "__main__":
