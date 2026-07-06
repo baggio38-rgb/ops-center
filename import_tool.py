@@ -25,6 +25,14 @@ from typing import Optional, Tuple
 import pandas as pd
 from google.cloud import bigquery
 
+try:
+    from services.data_cleaner import clean_upload_dataframe
+    from services.etl_refresh import refresh_core_marts, format_refresh_results
+except Exception:
+    clean_upload_dataframe = None
+    refresh_core_marts = None
+    format_refresh_results = None
+
 PROJECT_ID = 'mydata-494606'
 DATASET_ID = 'mydata'
 
@@ -217,6 +225,8 @@ def normalize_bet_detail(df: pd.DataFrame, filepath: str) -> pd.DataFrame:
     保留原始栏位，同时补充 _bet_month，方便写入 raw_bet_detail_YYYY_MM。
     """
     out = df.copy()
+    if clean_upload_dataframe is not None:
+        out = clean_upload_dataframe(out)
     out['_bet_month'] = infer_bet_detail_months(out, filepath)
     return out
 
@@ -285,6 +295,8 @@ def upload_to_bigquery(df: pd.DataFrame, table_name: str, dry_run: bool = False,
     client = bigquery.Client(project=PROJECT_ID)
     table_id = f'{PROJECT_ID}.{DATASET_ID}.{table_name}'
     payload = df.copy()
+    if clean_upload_dataframe is not None:
+        payload = clean_upload_dataframe(payload)
     payload['_imported_at'] = pd.Timestamp.now()
     if source_file:
         payload['_source_file'] = source_file
@@ -388,14 +400,14 @@ def process_folder(folder_path: str, dry_run: bool = False):
                     if table_name == 'raw_bet_detail':
                         if '_bet_month' not in df_data.columns or df_data['_bet_month'].isna().all():
                             raise ValueError('投注记录无法判断月份：请确认栏位「下注时间」存在且可解析')
-                        for month_key, sub_df in df_data.groupby('_bet_month', dropna=True):
-                            if not month_key or str(month_key) == 'nan':
-                                continue
-                            target_table = f'raw_bet_detail_{month_key}'
-                            uploaded = upload_to_bigquery(sub_df, target_table, dry_run=dry_run, source_file=basename)
-                            actual_uploaded += uploaded if not dry_run else len(sub_df)
-                            mode = 'dry-run' if dry_run else ''
-                            print(f'  导入 BigQuery: {target_table} ← {len(sub_df)}行 {mode}✅')
+                        # v2.1: Dashboard reads the unified raw_bet_detail table.
+                        # Keep _bet_month for audit/debug, but write all rows to the unified table
+                        # so fact_member_daily_v2 can be rebuilt from one source.
+                        target_table = 'raw_bet_detail'
+                        uploaded = upload_to_bigquery(df_data, target_table, dry_run=dry_run, source_file=basename)
+                        actual_uploaded += uploaded if not dry_run else len(df_data)
+                        mode = 'dry-run' if dry_run else ''
+                        print(f'  导入 BigQuery: {target_table} ← {len(df_data)}行 {mode}✅')
                     else:
                         actual_uploaded = upload_to_bigquery(df_data, table_name, dry_run=dry_run, source_file=basename)
                         mode = 'dry-run' if dry_run else ''
@@ -430,6 +442,17 @@ def process_folder(folder_path: str, dry_run: bool = False):
         total_rows += count
     print('  --------')
     print(f'  总计: {total_rows:,}行')
+    if (not dry_run) and total_rows > 0 and refresh_core_marts is not None:
+        print('\n  正在自动重建核心资料表 fact_member_daily_v2 / mart_member_profile / risk_member_score ...')
+        try:
+            client = bigquery.Client(project=PROJECT_ID)
+            results = refresh_core_marts(client)
+            if format_refresh_results is not None:
+                print(format_refresh_results(results))
+            else:
+                print(results)
+        except Exception as e:
+            print(f'  ⚠ 核心资料表自动更新失败: {e}')
     if errors:
         print(f'\n  ⚠ 有 {len(errors)} 个错误:')
         for fname, err in errors:

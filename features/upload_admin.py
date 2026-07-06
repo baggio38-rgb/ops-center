@@ -21,6 +21,7 @@ from google.cloud import bigquery
 from config import BQ_PREFIX
 from services.data_cleaner import clean_upload_dataframe
 from services.bigquery_client import get_bq_client
+from services.etl_refresh import refresh_core_marts, format_refresh_results
 from core.legacy import (
     hero,
     section_header,
@@ -1306,6 +1307,24 @@ def _render_data_upload_impl():
          '只「新增」绝不动库里旧数据。（拖进来 = 存进数据库；只想看分析不存，去对应的分析页。）')
 
     it = _import_tool()
+    client_for_sync = get_bq_client()
+    with st.expander('🔄 同步核心资料表（raw → Dashboard / Member360 / 风控）', expanded=False):
+        st.caption('上传资料后会自动同步；如果你手动修过 BigQuery，或首页最新经营日没更新，可以按这里重建核心资料表。')
+        if st.button('立即同步核心资料表', key='sync_core_marts_btn'):
+            with st.spinner('正在重建 fact_member_daily_v2 / mart_member_profile / risk_member_score...'):
+                try:
+                    sync_results = refresh_core_marts(client_for_sync)
+                    if all(r.ok for r in sync_results):
+                        st.success(format_refresh_results(sync_results))
+                    else:
+                        st.warning(format_refresh_results(sync_results))
+                    try:
+                        st.cache_data.clear()
+                    except Exception:
+                        pass
+                except Exception as ex:
+                    st.error(f'同步失败：{str(ex)[:220]}')
+
     files = st.file_uploader(
         '上传月度报表（可一次多个；支持 .xlsx / .csv / .zip）',
         type=['xlsx', 'xls', 'csv', 'zip'], accept_multiple_files=True, key='dataup_files')
@@ -1485,11 +1504,22 @@ def _render_data_upload_impl():
             st.success('写入成功：\n\n' + '\n\n'.join('· ' + s for s in ok))
         if fail:
             st.error('未写入：\n\n' + '\n\n'.join('· ' + s for s in fail))
+
+        if ok:
+            with st.spinner('正在自动更新 Dashboard / Member360 / 风控中心资料表...'):
+                try:
+                    refresh_results = refresh_core_marts(client)
+                    if all(r.ok for r in refresh_results):
+                        st.success('核心资料表已自动更新：\n\n' + format_refresh_results(refresh_results))
+                    else:
+                        st.warning('部分核心资料表更新失败：\n\n' + format_refresh_results(refresh_results))
+                except Exception as ex:
+                    st.warning(f'资料已写入，但自动更新核心资料表失败：{str(ex)[:180]}。可在「同步核心资料表」手动执行。')
         try:
             st.cache_data.clear()
         except Exception:
             pass
-        st.info('完成。切到对应分析页（可能要刷新一下）就能看到新数据了。')
+        st.info('完成。首页、Member360、风控中心会读取最新资料；若画面未刷新，请按 Rerun 或重新整理页面。')
 
 
 _DM_TABLES = {
