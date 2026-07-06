@@ -12,6 +12,8 @@ import re
 import sys
 import tempfile
 import zipfile
+import gc
+import time
 from typing import Optional
 
 import pandas as pd
@@ -1297,6 +1299,191 @@ def _validate_entry(entry, client):
     return warns
 
 
+
+def _load_dataframe_to_bq_chunked(client, df: pd.DataFrame, table_name: str, source_file: str, chunk_size: int = 50000) -> int:
+    """V7 大档案上传：分批清洗、分批写入 BigQuery，降低 Streamlit RAM 峰值。"""
+    if df is None or df.empty:
+        return 0
+    total = len(df)
+    written = 0
+    table_id = f"{BQ_PREFIX}.{table_name}"
+    for start in range(0, total, int(chunk_size)):
+        end = min(start + int(chunk_size), total)
+        chunk = df.iloc[start:end].copy()
+        payload = clean_upload_dataframe(chunk)
+        payload['_imported_at'] = pd.Timestamp.now()
+        payload['_source_file'] = source_file
+        cfg = bigquery.LoadJobConfig(
+            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+            autodetect=True,
+            schema_update_options=[bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION],
+        )
+        job = client.load_table_from_dataframe(payload, table_id, job_config=cfg)
+        job.result()
+        written += int(job.output_rows or len(payload))
+        del chunk, payload
+        gc.collect()
+    return written
+
+
+def _write_upload_history(client, records: list[dict]) -> None:
+    """写入上传历史；失败不影响主流程。"""
+    if not records:
+        return
+    try:
+        hist = pd.DataFrame(records)
+        hist['_logged_at'] = pd.Timestamp.now()
+        cfg = bigquery.LoadJobConfig(
+            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+            autodetect=True,
+            schema_update_options=[bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION],
+        )
+        client.load_table_from_dataframe(hist, f"{BQ_PREFIX}.upload_history", job_config=cfg).result()
+    except Exception:
+        pass
+
+
+def _write_entry_v7(client, e: dict, src: str, chunk_size: int) -> tuple[bool, str, int]:
+    """写入单一已解析 entry。返回 (ok, message, rows)。"""
+    kind = e.get('kind')
+    try:
+        if kind == 'standard':
+            # 大表优先走 append chunk；带日期替换的日报类仍保留原安全替换逻辑。
+            if e.get('date_range'):
+                rng, removed, written, total = _replace_by_date_range(client, e['df'], e['table'], src)
+                return True, f"{e['display']}：已替换 {rng}（覆盖旧 {removed} 行、写新 {written} 行，表共 {total} 行）", int(written)
+            if _bq_count_source_file(client, e['table'], src) > 0:
+                return False, f"{src}：已存在，跳过", 0
+            n = _load_dataframe_to_bq_chunked(client, e['df'], e['table'], src, chunk_size)
+            return True, f"{e['display']}「{src}」：+{n} 行", int(n)
+        if kind == 'snapshot':
+            # 快照表需要同月合并，仍采用原安全逻辑。
+            mth, updated, added, total = _replace_by_snapshot_month(client, e['df'], e['table'], src)
+            return True, f"{e['display']}：已合并 {mth}（更新 {updated}、新增 {added}，表共 {total} 行）", int(added)
+        if kind == 'bonus':
+            n = _append_bonus(client, e['df'], src, e.get('_existing_orders'))
+            if n == 0:
+                return False, f"{src}：订单全部已存在，跳过", 0
+            return True, f"红利「{src}」：+{n} 笔新订单", int(n)
+        if kind == 'cs':
+            if _cs_basename_loaded(client, os.path.basename(src)) > 0:
+                return False, f"{src}：已存在，跳过", 0
+            n = _append_cs(client, e['df'], src)
+            return True, f"客服对话「{src}」：+{n} 条", int(n)
+        if kind == 'winback':
+            total = _write_winback(client, e['df'], e.get('months', []), src)
+            return True, f"电访召回：已存 {','.join(e.get('months', []))}（表共 {total} 行）", int(total)
+        if kind == 'agent_monthly':
+            months = e.get('months', [])
+            n = _write_agent_monthly(client, e['df'], months, src)
+            rng = f"{months[0]}~{months[-1]}" if len(months) > 1 else (months[0] if months else '?')
+            return True, f"代理结算月度(市代)：已按月替换 {rng}，写 {n} 行", int(n)
+        if kind == 'settlement':
+            return False, f"{src}：V7 串流模式暂不处理需手动选月份的代理结算月报，请切回兼容模式上传。", 0
+        if kind == 'commission':
+            return False, f"{src}：V7 串流模式暂不处理代理佣金整月刷新，请切回兼容模式上传。", 0
+        return False, f"{src}：未识别，跳过", 0
+    except Exception as ex:
+        return False, f"{src}：{str(ex)[:180]}", 0
+
+
+def _render_v7_stream_upload(files, zip_pw: str, chunk_size: int, auto_sync: bool) -> None:
+    """V7 上传引擎：逐档处理、逐档写入、立即释放内存。"""
+    it = _import_tool()
+    client = get_bq_client()
+    all_units = []
+    for f in files:
+        all_units.extend(_expand_upload_units(f, zip_pw))
+    total_units = len(all_units)
+    if total_units == 0:
+        st.warning('没有可处理的文件。')
+        return
+
+    overall = st.progress(0.0)
+    status_box = st.empty()
+    results_box = st.container()
+    logs: list[dict] = []
+    ok_messages: list[str] = []
+    fail_messages: list[str] = []
+    t0 = time.time()
+
+    for idx, (src, tmp_path, err) in enumerate(all_units, start=1):
+        file_t0 = time.time()
+        status_box.info(f'正在处理 {idx}/{total_units}：{src}')
+        rows = 0
+        ok = False
+        msg = ''
+        try:
+            if err:
+                msg = f'{src}：{err}'
+                fail_messages.append(msg)
+            else:
+                entry = _classify_and_parse(it, client, src, tmp_path)
+                rows = int(entry.get('rows') or 0)
+                if not entry.get('is_new') or rows <= 0:
+                    msg = f"{src}：{entry.get('status', '无需写入')}"
+                    fail_messages.append(msg)
+                else:
+                    ok, msg, written = _write_entry_v7(client, entry, src, chunk_size)
+                    rows = int(written or rows)
+                    if ok:
+                        ok_messages.append(msg)
+                    else:
+                        fail_messages.append(msg)
+                # 关键：不把 df 留在 session，立即清掉。
+                try:
+                    if isinstance(entry, dict) and 'df' in entry:
+                        del entry['df']
+                    del entry
+                except Exception:
+                    pass
+        except Exception as ex:
+            msg = f'{src}：{str(ex)[:180]}'
+            fail_messages.append(msg)
+        finally:
+            if tmp_path:
+                try:
+                    os.unlink(tmp_path)
+                except Exception:
+                    pass
+            gc.collect()
+
+        elapsed = time.time() - file_t0
+        logs.append({
+            'source_file': src,
+            'rows': rows,
+            'seconds': round(elapsed, 2),
+            'status': 'success' if ok else 'skipped_or_failed',
+            'message': msg,
+        })
+        overall.progress(idx / total_units)
+        with results_box:
+            if ok:
+                st.success(msg)
+            else:
+                st.warning(msg)
+
+    _write_upload_history(client, logs)
+
+    if ok_messages and auto_sync:
+        with st.spinner('正在自动更新 Dashboard / Member360 / 风控中心资料表...'):
+            try:
+                refresh_results = refresh_core_marts(client)
+                if all(r.ok for r in refresh_results):
+                    st.success('核心资料表已自动更新：\n\n' + format_refresh_results(refresh_results))
+                else:
+                    st.warning('部分核心资料表更新失败：\n\n' + format_refresh_results(refresh_results))
+            except Exception as ex:
+                st.warning(f'资料已写入，但自动更新核心资料表失败：{str(ex)[:180]}。可在「同步核心资料表」手动执行。')
+    try:
+        st.cache_data.clear()
+    except Exception:
+        pass
+
+    total_elapsed = time.time() - t0
+    st.success(f'V7 上传流程完成，用时 {total_elapsed:.1f} 秒。成功 {len(ok_messages)} 个，跳过/失败 {len(fail_messages)} 个。')
+    st.dataframe(pd.DataFrame(logs), use_container_width=True, hide_index=True)
+
 def _render_data_upload_impl():
     import os
 
@@ -1331,6 +1518,22 @@ def _render_data_upload_impl():
     zip_pw = st.text_input(
         '压缩档解压密码（只有上传 .zip 才需要填，例如 代理 / 会员 / 推广 的密码档）',
         type='password', key='dataup_zip_pw', help='密码只在本次使用，不会保存。')
+
+    use_v7 = st.toggle('🚀 使用 V7 大档案稳定上传引擎（建议开启）', value=True,
+                       help='逐档处理、分批写入 BigQuery、自动释放内存，避免 Streamlit Cloud 上传大档时崩溃。')
+    if use_v7:
+        chunk_size = st.selectbox('BigQuery 分批写入大小', [10000, 20000, 50000, 100000], index=2,
+                                  help='档案越大，建议选 20000 或 50000；内存较小选 10000。')
+        auto_sync = st.checkbox('上传完成后自动同步核心资料表', value=True,
+                                help='自动重建 fact_member_daily_v2 / mart_member_profile / risk_member_score，并清除快取。')
+        if not files:
+            st.info('👆 请上传 .xlsx / .csv / .zip。V7 会逐档写入，避免大档案把 Streamlit 撑爆。')
+            return
+        if st.button('🚀 开始 V7 稳定上传', type='primary', key='dataup_v7_start'):
+            _render_v7_stream_upload(files, zip_pw, int(chunk_size), bool(auto_sync))
+        else:
+            st.info('已选择 V7 上传模式。确认档案无误后，按「开始 V7 稳定上传」。')
+        return
 
     if not files:
         st.info(
