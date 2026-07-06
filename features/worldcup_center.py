@@ -1,6 +1,6 @@
 """世界杯专区。
 
-v1.5.0 World Cup Center
+v1.6.1 World Cup Center
 - 统一世界杯识别规则：必须包含「世界杯2026(在加拿大、墨西哥&美国)」
 - 排除 Panda 注单
 - 修正会员盈亏 / 平台盈亏
@@ -52,7 +52,7 @@ from services.bigquery_client import query_bq
 
 PROJECT = "mydata-494606"
 DATASET = "mydata"
-VERSION = "v1.6.0"
+VERSION = "v1.6.1"
 
 ASSET_LOGO = Path(__file__).resolve().parents[1] / "assets" / "fifa2026_logo.png"
 
@@ -167,7 +167,7 @@ AND LOWER(CAST(`投注详情` AS STRING)) NOT LIKE '%panda%'
 """
 
 WORLD_CUP_BASE = f"""
-WITH wc AS (
+WITH raw AS (
   SELECT
     TRIM(CAST(`会员账号` AS STRING)) AS member_id,
     UPPER(REGEXP_REPLACE(TRIM(CAST(`会员账号` AS STRING)), r'[^A-Za-z0-9]', '')) AS member_key,
@@ -178,6 +178,7 @@ WITH wc AS (
     TRIM(CAST(`盘口` AS STRING)) AS handicap,
     TRIM(CAST(`状态` AS STRING)) AS bet_status,
     TRIM(CAST(`投注详情` AS STRING)) AS bet_detail,
+    REGEXP_REPLACE(REPLACE(TRIM(CAST(`投注详情` AS STRING)), '_x000D_', '\n'), r'\r', '') AS clean_detail,
     SAFE_CAST(`下注金额` AS FLOAT64) AS turnover,
     SAFE_CAST(`有效投注` AS FLOAT64) AS valid_turnover,
     SAFE_CAST(`盈亏` AS FLOAT64) AS profit_loss,
@@ -190,64 +191,58 @@ WITH wc AS (
     COALESCE(
       SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
       SAFE.PARSE_DATETIME('%Y/%m/%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-      SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', REGEXP_EXTRACT(CAST(`投注详情` AS STRING), r'足球\\((\\d{{4}}-\\d{{2}}-\\d{{2}} \\d{{2}}:\\d{{2}}:\\d{{2}})\\)'))
+      SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', REGEXP_EXTRACT(CAST(`投注详情` AS STRING), r'足球\((\d{{4}}-\d{{2}}-\d{{2}} \d{{2}}:\d{{2}}:\d{{2}})\)'))
     ) AS match_time,
-    CASE
-      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(CAST(`游戏名称` AS STRING), ''), ' ', IFNULL(CAST(`投注详情` AS STRING), ''))), r'串关|parlay')
-        THEN '串关/多场'
-      ELSE COALESCE(
-        REGEXP_REPLACE(
-          REGEXP_EXTRACT(CAST(`投注详情` AS STRING), r'世界杯2026\\(在加拿大、墨西哥&美国\\)[\\r\\n]+([^\\r\\n]+)'),
-          r'\\s+vs\\s+', ' v '
-        ),
-        '未识别赛事'
-      )
-    END AS match_name,
-    CASE
-      WHEN REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(CAST(`游戏名称` AS STRING), ''), ' ', IFNULL(CAST(`投注详情` AS STRING), ''))), r'串关|parlay') THEN '串关/多场'
-      WHEN DATE(COALESCE(
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y/%m/%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', REGEXP_EXTRACT(CAST(`投注详情` AS STRING), r'足球\\((\\d{{4}}-\\d{{2}}-\\d{{2}} \\d{{2}}:\\d{{2}}:\\d{{2}})\\)'))
-      )) <= DATE '2026-06-27' THEN '小组赛'
-      WHEN DATE(COALESCE(
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y/%m/%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', REGEXP_EXTRACT(CAST(`投注详情` AS STRING), r'足球\\((\\d{{4}}-\\d{{2}}-\\d{{2}} \\d{{2}}:\\d{{2}}:\\d{{2}})\\)'))
-      )) BETWEEN DATE '2026-06-28' AND DATE '2026-07-03' THEN '32强'
-      WHEN DATE(COALESCE(
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y/%m/%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', REGEXP_EXTRACT(CAST(`投注详情` AS STRING), r'足球\\((\\d{{4}}-\\d{{2}}-\\d{{2}} \\d{{2}}:\\d{{2}}:\\d{{2}})\\)'))
-      )) BETWEEN DATE '2026-07-04' AND DATE '2026-07-07' THEN '16强'
-      WHEN DATE(COALESCE(
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y/%m/%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', REGEXP_EXTRACT(CAST(`投注详情` AS STRING), r'足球\\((\\d{{4}}-\\d{{2}}-\\d{{2}} \\d{{2}}:\\d{{2}}:\\d{{2}})\\)'))
-      )) BETWEEN DATE '2026-07-09' AND DATE '2026-07-11' THEN '8强'
-      WHEN DATE(COALESCE(
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y/%m/%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', REGEXP_EXTRACT(CAST(`投注详情` AS STRING), r'足球\\((\\d{{4}}-\\d{{2}}-\\d{{2}} \\d{{2}}:\\d{{2}}:\\d{{2}})\\)'))
-      )) BETWEEN DATE '2026-07-14' AND DATE '2026-07-15' THEN '半决赛'
-      WHEN DATE(COALESCE(
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y/%m/%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', REGEXP_EXTRACT(CAST(`投注详情` AS STRING), r'足球\\((\\d{{4}}-\\d{{2}}-\\d{{2}} \\d{{2}}:\\d{{2}}:\\d{{2}})\\)'))
-      )) = DATE '2026-07-18' THEN '季军赛'
-      WHEN DATE(COALESCE(
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y/%m/%d %H:%M:%S', TRIM(CAST(`开赛时间` AS STRING))),
-        SAFE.PARSE_DATETIME('%Y-%m-%d %H:%M:%S', REGEXP_EXTRACT(CAST(`投注详情` AS STRING), r'足球\\((\\d{{4}}-\\d{{2}}-\\d{{2}} \\d{{2}}:\\d{{2}}:\\d{{2}})\\)'))
-      )) = DATE '2026-07-19' THEN '冠军赛'
-      ELSE '未识别阶段'
-    END AS match_stage,
     CAST(`注单流水号` AS STRING) AS bet_id
   FROM `{PROJECT}.{DATASET}.raw_bet_detail`
   WHERE {WORLD_CUP_WHERE}
+), parsed AS (
+  SELECT
+    raw.*,
+    REGEXP_REPLACE(
+      REGEXP_EXTRACT(clean_detail, r'(?:^|\n)([^\n]+?\s+v\s+[^\n]+)(?:\n|$)'),
+      r'\s+vs\s+', ' v '
+    ) AS parsed_match_name,
+    REGEXP_EXTRACT(clean_detail, r'玩法：([^\n]+)') AS parsed_market_name,
+    REGEXP_EXTRACT(clean_detail, r'(?:^|\n)([^@\n]+)@\d+(?:\.\d+)?') AS parsed_selection_name,
+    REGEXP_CONTAINS(LOWER(CONCAT(IFNULL(game_name, ''), ' ', IFNULL(clean_detail, ''))), r'串关|parlay') AS is_parlay
+  FROM raw
+), wc AS (
+  SELECT
+    parsed.*,
+    CASE
+      WHEN is_parlay THEN '串关/多场'
+      WHEN parsed_match_name IS NOT NULL THEN '单场赛事'
+      ELSE '阶段盘口'
+    END AS event_type,
+    CASE
+      WHEN is_parlay THEN '串关/多场'
+      WHEN parsed_match_name IS NOT NULL THEN parsed_match_name
+      ELSE CONCAT('阶段盘口：', IFNULL(parsed_market_name, '冠军/阶段'))
+    END AS match_name,
+    CASE
+      WHEN is_parlay THEN '串关/多场'
+      WHEN parsed_match_name IS NULL THEN '阶段盘口'
+      WHEN DATE(match_time) <= DATE '2026-06-27' THEN '小组赛'
+      WHEN DATE(match_time) BETWEEN DATE '2026-06-28' AND DATE '2026-07-03' THEN '32强'
+      WHEN DATE(match_time) BETWEEN DATE '2026-07-04' AND DATE '2026-07-07' THEN '16强'
+      WHEN DATE(match_time) BETWEEN DATE '2026-07-09' AND DATE '2026-07-11' THEN '8强'
+      WHEN DATE(match_time) BETWEEN DATE '2026-07-14' AND DATE '2026-07-15' THEN '半决赛'
+      WHEN DATE(match_time) = DATE '2026-07-18' THEN '季军赛'
+      WHEN DATE(match_time) = DATE '2026-07-19' THEN '冠军赛'
+      ELSE '未识别阶段'
+    END AS match_stage,
+    CASE
+      WHEN parsed_match_name IS NULL AND NOT is_parlay THEN IFNULL(parsed_market_name, '冠军/阶段')
+      ELSE play_type
+    END AS market_name,
+    CASE
+      WHEN parsed_match_name IS NULL AND NOT is_parlay THEN parsed_selection_name
+      ELSE NULL
+    END AS selection_name
+  FROM parsed
 )
 """
-
 STAGE_ORDER_SQL = """
 CASE match_stage
   WHEN '小组赛' THEN 1
@@ -257,7 +252,8 @@ CASE match_stage
   WHEN '半决赛' THEN 5
   WHEN '季军赛' THEN 6
   WHEN '冠军赛' THEN 7
-  WHEN '串关/多场' THEN 8
+  WHEN '阶段盘口' THEN 8
+  WHEN '串关/多场' THEN 9
   ELSE 99
 END
 """
@@ -307,7 +303,7 @@ def _load_summary() -> pd.DataFrame:
 SELECT
   COUNT(*) AS bet_count,
   COUNT(DISTINCT member_key) AS members,
-  COUNT(DISTINCT CASE WHEN match_name NOT IN ('串关/多场', '未识别赛事') THEN match_name END) AS matches,
+  COUNT(DISTINCT CASE WHEN event_type = '单场赛事' THEN match_name END) AS matches,
   SUM(turnover) AS turnover,
   SUM(valid_turnover) AS valid_turnover,
   SUM(profit_loss) AS member_profit_loss,
@@ -342,9 +338,10 @@ ORDER BY report_date;
 
 
 def _load_matches(stage: str = "全部阶段", limit: int = 300) -> pd.DataFrame:
-    where = ""
+    filters = ["event_type = '单场赛事'"]
     if stage and stage != "全部阶段":
-        where = f"WHERE match_stage = '{_safe_sql_text(stage)}'"
+        filters.append(f"match_stage = '{_safe_sql_text(stage)}'")
+    where = "WHERE " + " AND ".join(filters)
     return _safe_query(
         WORLD_CUP_BASE
         + f"""
@@ -377,7 +374,7 @@ SELECT
   match_stage,
   COUNT(*) AS bet_count,
   COUNT(DISTINCT member_key) AS members,
-  COUNT(DISTINCT match_name) AS matches,
+  COUNT(DISTINCT CASE WHEN event_type = '单场赛事' THEN match_name END) AS matches,
   SUM(turnover) AS turnover,
   SUM(valid_turnover) AS valid_turnover,
   SUM(profit_loss) AS member_profit_loss,
@@ -451,6 +448,7 @@ def _load_recent_bets(match_name: str | None = None, limit: int = 100) -> pd.Dat
 SELECT
   bet_time AS `下注时间`,
   member_id AS `会员账号`,
+  event_type AS `类型`,
   match_stage AS `阶段`,
   match_name AS `赛事`,
   provider AS `场馆`,
@@ -595,7 +593,7 @@ def render_match_monitor() -> None:
         alert("暂无世界杯赛事资料。", "warning")
         return
 
-    stage_options = ["全部阶段"] + [x for x in ["小组赛", "32强", "16强", "8强", "半决赛", "季军赛", "冠军赛", "串关/多场", "未识别阶段"] if x in set(matches_all["match_stage"].astype(str))]
+    stage_options = ["全部阶段"] + [x for x in ["小组赛", "32强", "16强", "8强", "半决赛", "季军赛", "冠军赛", "阶段盘口", "串关/多场", "未识别阶段"] if x in set(matches_all["match_stage"].astype(str))]
     selected_stage = st.selectbox("选择阶段", stage_options)
     matches = matches_all if selected_stage == "全部阶段" else matches_all[matches_all["match_stage"] == selected_stage]
 
@@ -695,7 +693,7 @@ def render_worldcup_schedule_center() -> None:
         alert("暂无世界杯比赛资料。", "warning")
         return
 
-    stage_order = ["小组赛", "32强", "16强", "8强", "半决赛", "季军赛", "冠军赛", "串关/多场", "未识别阶段"]
+    stage_order = ["小组赛", "32强", "16强", "8强", "半决赛", "季军赛", "冠军赛", "阶段盘口", "串关/多场", "未识别阶段"]
     available = [x for x in stage_order if x in set(matches_all["match_stage"].astype(str))]
     if not available:
         available = sorted(matches_all["match_stage"].dropna().astype(str).unique().tolist())
