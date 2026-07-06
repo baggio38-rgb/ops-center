@@ -252,6 +252,135 @@ div[data-testid="stHorizontalBlock"] {gap: .95rem;}
   .yz-header-actions {justify-content:flex-start;}
   .yz-update-text {text-align:left;}
 }
+
+
+/* v4.2 Enterprise Dashboard overrides */
+.block-container {
+  max-width: 1840px !important;
+  padding-top: .85rem !important;
+}
+.yz-enterprise-header {
+  min-height: 108px;
+  padding: 20px 24px !important;
+  margin-bottom: 14px !important;
+}
+.yz-header-title {font-size: 31px !important;}
+.yz-header-subtitle {font-size: 12px !important;}
+.yz-breadcrumb {margin-top: 10px !important;}
+.yz-search-box {min-width: 300px !important;}
+.yz-side-caption {
+  color: #93c5fd;
+  font-size: 12px;
+  font-weight: 850;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(59, 130, 246, .10);
+  border: 1px solid rgba(96, 165, 250, .16);
+}
+.yz-topnav-spacer {height: 14px;}
+/* Hide legacy page hero to avoid duplicated headers */
+.gip-hero, .yz-hero {display: none !important;}
+
+/* Top secondary navigation */
+section.main div[data-testid="stRadio"]:has([role="radiogroup"]) {
+  margin-top: 0 !important;
+}
+section.main div[data-testid="stRadio"] [role="radiogroup"] {
+  display: flex !important;
+  gap: 8px !important;
+  min-height: 46px !important;
+  padding: 8px 0 12px !important;
+  border-bottom: 1px solid rgba(148,163,184,.18);
+  margin-bottom: 10px;
+}
+section.main div[data-testid="stRadio"] label {
+  min-height: 38px !important;
+  border: 1px solid rgba(148,163,184,.18) !important;
+  background: rgba(15,23,42,.38) !important;
+  border-radius: 14px !important;
+  padding: 8px 14px !important;
+  transition: all .16s ease;
+}
+section.main div[data-testid="stRadio"] label:hover {
+  background: rgba(37,99,235,.22) !important;
+  border-color: rgba(96,165,250,.52) !important;
+  transform: translateY(-1px);
+}
+section.main div[data-testid="stRadio"] label p {
+  color: #e5eefb !important;
+  font-size: 14px !important;
+  font-weight: 900 !important;
+}
+
+/* KPI section spacing and glass cards */
+div[data-testid="stHorizontalBlock"] {gap: 1.25rem !important;}
+.gip-card {
+  min-height: 145px !important;
+  margin-bottom: 16px !important;
+  padding: 22px 24px !important;
+  border-radius: 24px !important;
+  background:
+    radial-gradient(circle at 14% 16%, rgba(59,130,246,.14), transparent 12rem),
+    linear-gradient(180deg, rgba(15,23,42,.92), rgba(15,23,42,.72)) !important;
+  border: 1px solid rgba(148,163,184,.22) !important;
+  box-shadow: 0 14px 38px rgba(2,6,23,.32) !important;
+}
+.gip-card:hover {
+  transform: translateY(-4px) !important;
+  border-color: rgba(96,165,250,.58) !important;
+  box-shadow: 0 22px 54px rgba(37,99,235,.24) !important;
+}
+.gip-card-title {font-size: 14px !important; color: #c7d2fe !important; margin-bottom: 14px !important;}
+.gip-card-icon {
+  width: 38px !important;
+  height: 38px !important;
+  border-radius: 15px !important;
+  background: linear-gradient(135deg, rgba(37,99,235,.28), rgba(14,165,233,.18)) !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.08);
+}
+.gip-card-value {
+  font-size: 38px !important;
+  color: #f8fafc !important;
+  letter-spacing: -1px !important;
+}
+.gip-card-note {font-size: 13px !important; color: #94a3b8 !important; margin-top: 13px !important;}
+.gip-delta-up {color:#34d399 !important;}
+.gip-delta-down {color:#f87171 !important;}
+
+/* AI brief and alerts upgraded to dark cards */
+.gip-brief {
+  background:
+    radial-gradient(circle at 0% 0%, rgba(14,165,233,.12), transparent 16rem),
+    linear-gradient(180deg, rgba(15,23,42,.92), rgba(15,23,42,.74)) !important;
+  border: 1px solid rgba(148,163,184,.22) !important;
+  color: #e5eefb !important;
+  box-shadow: 0 14px 38px rgba(2,6,23,.30) !important;
+}
+.gip-brief:before {
+  content: "🤖 AI经营摘要";
+  display: block;
+  color: #f8fafc;
+  font-size: 17px;
+  font-weight: 950;
+  margin-bottom: 10px;
+}
+.gip-alert {
+  background: linear-gradient(180deg, rgba(15,23,42,.90), rgba(15,23,42,.72)) !important;
+  border: 1px solid rgba(148,163,184,.22) !important;
+  color: #e5eefb !important;
+  margin-bottom: 12px !important;
+}
+.gip-alert span, .gip-alert div, .gip-alert p {color:#e5eefb !important;}
+
+/* More breathing room around section titles */
+.gip-section-title {margin-top: 28px !important; margin-bottom: 9px !important;}
+.gip-section-subtitle {margin-bottom: 18px !important;}
+
+@media (max-width: 1200px) {
+  .yz-search-box {min-width: 220px !important;}
+  .gip-card-value {font-size: 32px !important;}
+}
+
 </style>
 """
 
@@ -300,11 +429,11 @@ def enterprise_header(title: str, subtitle: str, version: str, date: str, active
     )
 
 
-def topbar(app_name: str = "亿兆智能决策平台", subtitle: str = "Enterprise Intelligence Platform", version: str = "v4.0.0") -> None:
+def topbar(app_name: str = "亿兆智能决策平台", subtitle: str = "Enterprise Intelligence Platform", version: str = "v4.2.0") -> None:
     enterprise_header(app_name, subtitle, version, "", "", "")
 
 
-def hero(title: str, subtitle: str, version: str = "v4.0.0") -> None:
+def hero(title: str, subtitle: str, version: str = "v4.2.0") -> None:
     st.markdown(
         f"""
         <div class="gip-hero">

@@ -8,7 +8,7 @@ try:
     from version import APP_NAME, APP_VERSION, APP_VERSION_DATE, APP_SUBTITLE
 except Exception:
     APP_NAME = "亿兆智能决策平台"
-    APP_VERSION = "v4.0.0"
+    APP_VERSION = "v4.2.0"
     APP_VERSION_DATE = "2026-07-07"
     APP_SUBTITLE = "Enterprise Intelligence Platform"
 
@@ -61,7 +61,7 @@ def _safe_apply_theme() -> None:
         )
 
 
-def _render_sidebar() -> tuple[str, str]:
+def _render_sidebar() -> str:
     with st.sidebar:
         if sidebar_brand:
             sidebar_brand(APP_NAME, APP_SUBTITLE, APP_VERSION)
@@ -77,14 +77,7 @@ def _render_sidebar() -> tuple[str, str]:
         )
 
         st.markdown('<div class="yz-side-divider"></div>', unsafe_allow_html=True)
-
-        sub_options = [name for name, _ in NAV_GROUPS[group]]
-        sub = st.radio(
-            "页面",
-            sub_options,
-            label_visibility="collapsed",
-            key=f"enterprise_nav_sub_{group}",
-        )
+        st.markdown('<div class="yz-side-caption">副功能已移到页面顶部</div>', unsafe_allow_html=True)
 
         st.markdown('<div class="yz-side-spacer"></div>', unsafe_allow_html=True)
         st.markdown(
@@ -98,12 +91,17 @@ def _render_sidebar() -> tuple[str, str]:
             """,
             unsafe_allow_html=True,
         )
-        return group, sub
+        return group
 
 
 def main() -> None:
     _safe_apply_theme()
-    group, sub = _render_sidebar()
+    group = _render_sidebar()
+
+    sub_options = [name for name, _ in NAV_GROUPS[group]]
+    default_sub = st.session_state.get(f"enterprise_nav_sub_{group}", sub_options[0])
+    if default_sub not in sub_options:
+        default_sub = sub_options[0]
 
     if enterprise_header:
         enterprise_header(
@@ -112,11 +110,21 @@ def main() -> None:
             version=APP_VERSION,
             date=APP_VERSION_DATE,
             active_group=group,
-            active_page=sub,
+            active_page=default_sub,
         )
     else:
         st.title(APP_NAME)
         st.caption(f"{APP_SUBTITLE} · {APP_VERSION} · {APP_VERSION_DATE}")
+
+    sub = st.radio(
+        "副功能",
+        sub_options,
+        index=sub_options.index(default_sub),
+        horizontal=True,
+        label_visibility="collapsed",
+        key=f"enterprise_nav_sub_{group}",
+    )
+    st.markdown('<div class="yz-topnav-spacer"></div>', unsafe_allow_html=True)
 
     renderer = {name: fn for name, fn in NAV_GROUPS[group]}[sub]
     renderer()
