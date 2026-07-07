@@ -31,6 +31,29 @@ def _in_clause(column: str, values: Iterable[str] | None) -> str:
     return f" AND {column} IN ({', '.join(_sql_str(v) for v in vals)})"
 
 
+def _as_list(value) -> list[str]:
+    """Safely normalize BigQuery/Pandas scalar or ARRAY values to a clean list.
+
+    BigQuery ARRAY columns may arrive as list, tuple, numpy.ndarray, or None.
+    Never use `value or []` on numpy arrays, because it can raise
+    `ValueError: The truth value of an array with more than one element is ambiguous`.
+    """
+    if value is None:
+        return []
+    try:
+        if pd.isna(value):
+            return []
+    except Exception:
+        pass
+    if isinstance(value, (list, tuple, set)):
+        return [str(v) for v in value if v is not None and str(v).strip()]
+    try:
+        # numpy.ndarray / pandas array-like
+        return [str(v) for v in value.tolist() if v is not None and str(v).strip()]
+    except Exception:
+        return [str(value)] if str(value).strip() else []
+
+
 def get_filter_options() -> dict[str, list[str]]:
     sql = f"""
     SELECT
@@ -43,9 +66,9 @@ def get_filter_options() -> dict[str, list[str]]:
     if df.empty:
         return {"stages": [], "teams": []}
     row = df.iloc[0]
-    teams = sorted(set(list(row.get("home_teams") or []) + list(row.get("away_teams") or [])))
+    teams = sorted(set(_as_list(row.get("home_teams")) + _as_list(row.get("away_teams"))))
     return {
-        "stages": list(row.get("stages") or []),
+        "stages": _as_list(row.get("stages")),
         "teams": teams,
     }
 
@@ -68,12 +91,14 @@ def get_worldcup_kpi(stages: list[str] | None = None, teams: list[str] | None = 
       FROM {_q('agg_worldcup_match')}
       {where}
     ), members AS (
-      SELECT COUNT(DISTINCT w.member_key) AS total_members
-      FROM {_q('agg_member_worldcup')} w
+      SELECT COUNT(DISTINCT f.`会员账号`) AS member_count
+      FROM {_q('fact_worldcup_bet')} f
+      JOIN m
+        ON TRIM(CAST(f.`游戏编号` AS STRING)) = m.game_id
     )
     SELECT
       SUM(bet_count) AS bet_count,
-      (SELECT total_members FROM members) AS member_count,
+      (SELECT member_count FROM members) AS member_count,
       COUNT(DISTINCT game_id) AS match_count,
       SUM(bet_amount) AS bet_amount,
       SUM(valid_turnover) AS valid_turnover,
