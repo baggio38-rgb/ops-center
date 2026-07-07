@@ -4,9 +4,26 @@ from __future__ import annotations
 
 from html import escape
 from typing import Any
+import base64
+from pathlib import Path
 
 import pandas as pd
 import streamlit as st
+
+
+def _asset_data_uri(filename: str = "yizhao_logo.png") -> str:
+    """Return a base64 data URI for a local asset, safe for Streamlit Cloud."""
+    candidates = [
+        Path(__file__).resolve().parent.parent / "assets" / filename,
+        Path("assets") / filename,
+    ]
+    for path in candidates:
+        try:
+            data = path.read_bytes()
+            return "data:image/png;base64," + base64.b64encode(data).decode("ascii")
+        except Exception:
+            continue
+    return ""
 
 
 CSS = """
@@ -132,13 +149,21 @@ div[data-testid="stHorizontalBlock"] {gap: .95rem;}
   margin-bottom: 15px;
   box-shadow: 0 14px 32px rgba(0,0,0,.22);
 }
-.yz-logo-mark {
-  width: 42px; height: 42px; border-radius: 14px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #2563eb, #0ea5e9);
-  box-shadow: 0 12px 26px rgba(37,99,235,.28);
-  font-size: 22px; margin-bottom: 10px;
+.yz-logo-img {
+  height: 48px;
+  max-width: 180px;
+  object-fit: contain;
+  display: block;
+  margin-bottom: 11px;
+  filter: drop-shadow(0 12px 26px rgba(37,99,235,.26));
+  animation: yz-logo-in .55s ease-out both;
 }
+.yz-header-logo-img {
+  width: 58px; height: 58px; object-fit: contain; flex: 0 0 auto;
+  filter: drop-shadow(0 12px 24px rgba(37,99,235,.32));
+}
+.yz-header-brand {display:flex; align-items:center; gap:14px;}
+@keyframes yz-logo-in {from {opacity:0; transform:scale(.94)} to {opacity:1; transform:scale(1)}}
 .yz-sidebar-title {font-size: 18px; font-weight: 950; letter-spacing: .2px; line-height: 1.2; color:#fff;}
 .yz-sidebar-subtitle {font-size: 11px; color:#93c5fd; font-weight: 800; margin-top: 6px;}
 .yz-version-chip {display:inline-block; margin-top:10px; padding:4px 9px; border-radius:999px; background:rgba(255,255,255,.10); color:#e0f2fe; font-size:11px; font-weight:900; border:1px solid rgba(255,255,255,.12);}
@@ -254,14 +279,38 @@ div[data-testid="stHorizontalBlock"] {gap: .95rem;}
 }
 
 
+/* v4.3 Branding and sticky header */
+.yz-enterprise-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 9998 !important;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+section.main div[data-testid="stRadio"]:has([role="radiogroup"]) {
+  position: sticky !important;
+  top: 96px !important;
+  z-index: 9997 !important;
+  background: rgba(7, 17, 31, .88);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-radius: 0 0 18px 18px;
+  padding: 0 4px 2px 4px;
+  box-shadow: 0 16px 34px rgba(2,6,23,.22);
+}
+.yz-enterprise-header {
+  border-radius: 22px !important;
+}
+.yz-header-title-wrap {min-width: 0;}
+
 /* v4.2 Enterprise Dashboard overrides */
 .block-container {
   max-width: 1840px !important;
   padding-top: .85rem !important;
 }
 .yz-enterprise-header {
-  min-height: 108px;
-  padding: 20px 24px !important;
+  min-height: 92px;
+  padding: 16px 22px !important;
   margin-bottom: 14px !important;
 }
 .yz-header-title {font-size: 31px !important;}
@@ -390,10 +439,12 @@ def apply_theme() -> None:
 
 
 def sidebar_brand(app_name: str, subtitle: str, version: str) -> None:
+    logo = _asset_data_uri()
+    logo_html = f'<img class="yz-logo-img" src="{logo}" alt="亿兆 Logo" />' if logo else '<div class="yz-logo-img">亿兆</div>'
     st.markdown(
         f"""
         <div class="yz-sidebar-brand">
-          <div class="yz-logo-mark">亿</div>
+          {logo_html}
           <div class="yz-sidebar-title">{escape(app_name)}</div>
           <div class="yz-sidebar-subtitle">{escape(subtitle)}</div>
           <span class="yz-version-chip">{escape(version)}</span>
@@ -405,14 +456,19 @@ def sidebar_brand(app_name: str, subtitle: str, version: str) -> None:
 
 def enterprise_header(title: str, subtitle: str, version: str, date: str, active_group: str = "", active_page: str = "") -> None:
     crumb = " > ".join([x for x in [active_group, active_page] if x])
+    logo = _asset_data_uri()
+    logo_html = f'<img class="yz-header-logo-img" src="{logo}" alt="亿兆 Logo" />' if logo else '<div class="yz-header-logo-img">亿</div>'
     st.markdown(
         f"""
         <div class="yz-enterprise-header">
           <div class="yz-header-grid">
-            <div>
-              <div class="yz-header-title">{escape(title)}</div>
-              <div class="yz-header-subtitle">{escape(subtitle)} · {escape(version)} · {escape(date)}</div>
-              <div class="yz-breadcrumb">当前位置：{escape(crumb or '首页')}</div>
+            <div class="yz-header-brand">
+              {logo_html}
+              <div class="yz-header-title-wrap">
+                <div class="yz-header-title">{escape(title)}</div>
+                <div class="yz-header-subtitle">{escape(subtitle)} · {escape(version)} · {escape(date)}</div>
+                <div class="yz-breadcrumb">当前位置：{escape(crumb or '首页')}</div>
+              </div>
             </div>
             <div class="yz-header-actions">
               <div class="yz-search-box">🔍 全局搜索：会员 / 赛事 / 游戏</div>
@@ -429,11 +485,11 @@ def enterprise_header(title: str, subtitle: str, version: str, date: str, active
     )
 
 
-def topbar(app_name: str = "亿兆智能决策平台", subtitle: str = "Enterprise Intelligence Platform", version: str = "v4.2.0") -> None:
+def topbar(app_name: str = "亿兆智能决策平台", subtitle: str = "Enterprise Intelligence Platform", version: str = "v4.3.0") -> None:
     enterprise_header(app_name, subtitle, version, "", "", "")
 
 
-def hero(title: str, subtitle: str, version: str = "v4.2.0") -> None:
+def hero(title: str, subtitle: str, version: str = "v4.3.0") -> None:
     st.markdown(
         f"""
         <div class="gip-hero">
