@@ -150,8 +150,8 @@ div[data-testid="stHorizontalBlock"] {gap: .95rem;}
   box-shadow: 0 14px 32px rgba(0,0,0,.22);
 }
 .yz-logo-img {
-  height: 48px;
-  max-width: 180px;
+  height: 68px;
+  max-width: 210px;
   object-fit: contain;
   display: block;
   margin-bottom: 11px;
@@ -159,10 +159,10 @@ div[data-testid="stHorizontalBlock"] {gap: .95rem;}
   animation: yz-logo-in .55s ease-out both;
 }
 .yz-header-logo-img {
-  width: 58px; height: 58px; object-fit: contain; flex: 0 0 auto;
+  width: 88px; height: 88px; object-fit: contain; flex: 0 0 auto;
   filter: drop-shadow(0 12px 24px rgba(37,99,235,.32));
 }
-.yz-header-brand {display:flex; align-items:center; gap:14px;}
+.yz-header-brand {display:flex; align-items:center; gap:18px;}
 @keyframes yz-logo-in {from {opacity:0; transform:scale(.94)} to {opacity:1; transform:scale(1)}}
 .yz-sidebar-title {font-size: 18px; font-weight: 950; letter-spacing: .2px; line-height: 1.2; color:#fff;}
 .yz-sidebar-subtitle {font-size: 11px; color:#93c5fd; font-weight: 800; margin-top: 6px;}
@@ -289,7 +289,7 @@ div[data-testid="stHorizontalBlock"] {gap: .95rem;}
 }
 section.main div[data-testid="stRadio"]:has([role="radiogroup"]) {
   position: sticky !important;
-  top: 96px !important;
+  top: 132px !important;
   z-index: 9997 !important;
   background: rgba(7, 17, 31, .88);
   backdrop-filter: blur(16px);
@@ -309,12 +309,12 @@ section.main div[data-testid="stRadio"]:has([role="radiogroup"]) {
   padding-top: .85rem !important;
 }
 .yz-enterprise-header {
-  min-height: 92px;
-  padding: 16px 22px !important;
+  min-height: 124px;
+  padding: 22px 26px !important;
   margin-bottom: 14px !important;
 }
-.yz-header-title {font-size: 31px !important;}
-.yz-header-subtitle {font-size: 12px !important;}
+.yz-header-title {font-size: 36px !important;}
+.yz-header-subtitle {font-size: 13px !important;}
 .yz-breadcrumb {margin-top: 10px !important;}
 .yz-search-box {min-width: 300px !important;}
 .yz-side-caption {
@@ -326,7 +326,7 @@ section.main div[data-testid="stRadio"]:has([role="radiogroup"]) {
   background: rgba(59, 130, 246, .10);
   border: 1px solid rgba(96, 165, 250, .16);
 }
-.yz-topnav-spacer {height: 14px;}
+.yz-topnav-spacer {height: 18px;}
 /* Hide legacy page hero to avoid duplicated headers */
 .gip-hero, .yz-hero {display: none !important;}
 
@@ -430,6 +430,67 @@ div[data-testid="stHorizontalBlock"] {gap: 1.25rem !important;}
   .gip-card-value {font-size: 32px !important;}
 }
 
+
+
+/* v5.2 固定顶部与 Logo 放大 */
+.yz-enterprise-header {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 2147483000 !important;
+  min-height: 124px !important;
+  padding: 22px 26px !important;
+  margin-bottom: 0 !important;
+  border-radius: 24px 24px 18px 18px !important;
+  background:
+    radial-gradient(circle at 78% 16%, rgba(14,165,233,.34), transparent 28rem),
+    radial-gradient(circle at 12% 8%, rgba(37,99,235,.44), transparent 24rem),
+    linear-gradient(135deg, rgba(15,23,42,.98), rgba(30,64,175,.78) 54%, rgba(2,132,199,.50)) !important;
+  box-shadow: 0 18px 46px rgba(2,6,23,.42) !important;
+  backdrop-filter: blur(20px) saturate(1.15) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(1.15) !important;
+}
+.yz-header-logo-img {
+  width: 88px !important;
+  height: 88px !important;
+  max-width: 88px !important;
+}
+.yz-logo-img {
+  height: 68px !important;
+  max-width: 215px !important;
+}
+.yz-header-title {
+  font-size: 36px !important;
+  line-height: 1.08 !important;
+}
+.yz-header-subtitle {
+  font-size: 13px !important;
+}
+.yz-breadcrumb {
+  margin-top: 12px !important;
+}
+section.main div[data-testid="stRadio"]:has([role="radiogroup"]) {
+  position: sticky !important;
+  top: 132px !important;
+  z-index: 2147482999 !important;
+  background: linear-gradient(180deg, rgba(7,17,31,.98), rgba(7,17,31,.90)) !important;
+  backdrop-filter: blur(18px) saturate(1.15) !important;
+  -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
+  padding: 8px 8px 0 8px !important;
+  margin-bottom: 24px !important;
+  border-radius: 0 0 20px 20px !important;
+  box-shadow: 0 18px 38px rgba(2,6,23,.38) !important;
+  border-bottom: 1px solid rgba(96,165,250,.20) !important;
+}
+section.main div[data-testid="stRadio"] [role="radiogroup"] {
+  padding: 8px 0 12px 0 !important;
+  margin-bottom: 0 !important;
+}
+@media (max-width: 900px) {
+  .yz-enterprise-header {min-height: 156px !important;}
+  section.main div[data-testid="stRadio"]:has([role="radiogroup"]) {top: 164px !important;}
+  .yz-header-logo-img {width: 72px !important; height: 72px !important;}
+  .yz-header-title {font-size: 28px !important;}
+}
 </style>
 """
 

@@ -17,6 +17,62 @@ from components.charts import bar_chart, line_chart, donut_chart, dual_axis_bar_
 from services import worldcup_service as svc
 from utils.formatter import fmt_num, fmt_pct
 
+ZH_TABLE_COLUMNS = {
+    "game_id": "赛事编号",
+    "tournament": "赛事",
+    "stage": "赛事阶段",
+    "match_name": "比赛名称",
+    "home_team": "主队",
+    "away_team": "客队",
+    "kickoff_time": "开赛时间",
+    "play_type": "玩法",
+    "member_key": "会员账号",
+    "vip_level": "VIP等级",
+    "agent_name": "代理",
+    "risk_level": "风险等级",
+    "risk_score": "风险分数",
+    "bet_count": "投注笔数",
+    "member_count": "投注人数",
+    "match_count": "比赛数",
+    "game_count": "参与比赛数",
+    "play_type_count": "玩法数",
+    "provider_count": "场馆数",
+    "bet_amount": "下注金额",
+    "valid_turnover": "有效投注",
+    "member_profit_loss": "会员盈亏",
+    "platform_profit_loss": "平台盈亏",
+    "member_rtp": "会员RTP",
+    "platform_roi": "平台ROI",
+    "updated_at": "更新时间",
+}
+
+MONEY_COLUMNS = {"bet_amount", "valid_turnover", "member_profit_loss", "platform_profit_loss"}
+PCT_COLUMNS = {"member_rtp", "platform_roi"}
+INT_COLUMNS = {"bet_count", "member_count", "match_count", "game_count", "play_type_count", "provider_count", "risk_score"}
+DATE_COLUMNS = {"kickoff_time", "updated_at"}
+
+
+def _display_df(df: pd.DataFrame) -> pd.DataFrame:
+    if df is None or df.empty:
+        return pd.DataFrame()
+    out = df.copy()
+    for col in DATE_COLUMNS & set(out.columns):
+        try:
+            out[col] = pd.to_datetime(out[col], errors="coerce").dt.strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            pass
+    for col in MONEY_COLUMNS & set(out.columns):
+        out[col] = pd.to_numeric(out[col], errors="coerce").map(lambda x: "" if pd.isna(x) else f"{x:,.2f}")
+    for col in PCT_COLUMNS & set(out.columns):
+        out[col] = pd.to_numeric(out[col], errors="coerce").map(lambda x: "" if pd.isna(x) else f"{x*100:,.2f}%")
+    for col in INT_COLUMNS & set(out.columns):
+        out[col] = pd.to_numeric(out[col], errors="coerce").map(lambda x: "" if pd.isna(x) else f"{int(x):,}")
+    return out.rename(columns=ZH_TABLE_COLUMNS)
+
+
+def _show_table(df: pd.DataFrame) -> None:
+    st.dataframe(_display_df(df), use_container_width=True, hide_index=True)
+
 
 def _first(df: pd.DataFrame, col: str, default=0):
     if df is None or df.empty or col not in df.columns:
@@ -68,7 +124,7 @@ def render_worldcup_v2_overview() -> None:
     match_df = svc.get_match_summary(stages, teams, limit=20)
     mchart = match_df[["match_name", "valid_turnover"]].head(10) if not match_df.empty else pd.DataFrame()
     bar_chart(mchart.sort_values("valid_turnover") if not mchart.empty else mchart, "match_name", "valid_turnover", "Top10 比赛有效投注", orientation="h")
-    st.dataframe(match_df, use_container_width=True, hide_index=True)
+    _show_table(match_df)
 
 
 def render_worldcup_v2_matches() -> None:
@@ -84,7 +140,7 @@ def render_worldcup_v2_matches() -> None:
         bar_chart(df.head(20).sort_values("valid_turnover"), "match_name", "valid_turnover", "有效投注 Top20", orientation="h", height=620)
     with c2:
         bar_chart(df.head(20).sort_values("platform_profit_loss"), "match_name", "platform_profit_loss", "平台盈亏 Top20", orientation="h", height=620)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    _show_table(df)
 
 
 def render_worldcup_v2_playtypes() -> None:
@@ -101,7 +157,7 @@ def render_worldcup_v2_playtypes() -> None:
         bar_chart(df.head(15).sort_values("valid_turnover"), "play_type", "valid_turnover", "玩法有效投注 Top15", orientation="h", height=520)
     with c2:
         bar_chart(df.head(15).sort_values("platform_profit_loss"), "play_type", "platform_profit_loss", "玩法平台盈亏 Top15", orientation="h", height=520)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    _show_table(df)
 
 
 def render_worldcup_v2_members() -> None:
@@ -117,7 +173,7 @@ def render_worldcup_v2_members() -> None:
     with c2:
         prof = df.sort_values("platform_profit_loss", ascending=False).head(20)
         bar_chart(prof.sort_values("platform_profit_loss"), "member_key", "platform_profit_loss", "平台盈利会员 Top20", orientation="h", height=620)
-    st.dataframe(df, use_container_width=True, hide_index=True)
+    _show_table(df)
 
 
 def render_worldcup_v2_risk() -> None:
@@ -133,4 +189,4 @@ def render_worldcup_v2_risk() -> None:
             st.success("当前世界杯会员没有非 Normal 风险资料。")
         else:
             bar_chart(risk_df.head(20).sort_values("valid_turnover"), "member_key", "valid_turnover", "风险会员有效投注 Top20", orientation="h")
-    st.dataframe(risk_df, use_container_width=True, hide_index=True)
+    _show_table(risk_df)
