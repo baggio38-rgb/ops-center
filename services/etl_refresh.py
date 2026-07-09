@@ -385,6 +385,259 @@ def refresh_core_marts(client: bigquery.Client | None = None, *, stop_on_error: 
     return results
 
 
+# -----------------------------------------------------------------------------
+# V5.3 Auto Refresh Layer
+# raw_bet_detail -> fact_bet_detail -> dim_game -> fact_worldcup_bet
+#                -> agg_worldcup_match / agg_worldcup_playtype / agg_member_worldcup
+#                -> agg_dashboard_daily
+# -----------------------------------------------------------------------------
+
+SQL_FACT_BET_DETAIL = f"""
+CREATE OR REPLACE TABLE `{BQ_PREFIX}.fact_bet_detail` AS
+WITH src AS (
+  SELECT
+    t.*,
+    COALESCE(
+      NULLIF(TRIM(CAST(`注单流水号` AS STRING)), ''),
+      CONCAT('__NO_ORDER__', CAST(ABS(FARM_FINGERPRINT(TO_JSON_STRING(t))) AS STRING))
+    ) AS _dedup_order_key
+  FROM `{BQ_PREFIX}.raw_bet_detail` AS t
+), ranked AS (
+  SELECT
+    * EXCEPT(_dedup_order_key),
+    ROW_NUMBER() OVER (
+      PARTITION BY _dedup_order_key
+      ORDER BY _imported_at DESC
+    ) AS rn
+  FROM src
+)
+SELECT * EXCEPT(rn)
+FROM ranked
+WHERE rn = 1
+"""
+
+SQL_DIM_GAME = f"""
+CREATE OR REPLACE TABLE `{BQ_PREFIX}.dim_game` AS
+WITH wc AS (
+  SELECT
+    TRIM(CAST(`游戏编号` AS STRING)) AS game_id,
+    CAST(`投注详情` AS STRING) AS bet_detail,
+    REPLACE(REPLACE(CAST(`投注详情` AS STRING), '_x000D_', '\\n'), '\\r', '\\n') AS detail_norm
+  FROM `{BQ_PREFIX}.fact_bet_detail`
+  WHERE TRIM(CAST(`游戏编号` AS STRING)) IS NOT NULL
+    AND TRIM(CAST(`游戏编号` AS STRING)) != ''
+    AND CAST(`投注详情` AS STRING) LIKE '%世界杯2026(在加拿大、墨西哥&美国)%'
+    AND LOWER(CAST(`投注详情` AS STRING)) NOT LIKE '%panda%'
+), parsed AS (
+  SELECT
+    game_id,
+    ARRAY_AGG(
+      SAFE.PARSE_DATETIME(
+        '%Y-%m-%d %H:%M:%S',
+        REGEXP_EXTRACT(detail_norm, r'足球\\((\\d{{4}}-\\d{{2}}-\\d{{2}} \\d{{2}}:\\d{{2}}:\\d{{2}})\\)')
+      ) IGNORE NULLS
+      ORDER BY SAFE.PARSE_DATETIME(
+        '%Y-%m-%d %H:%M:%S',
+        REGEXP_EXTRACT(detail_norm, r'足球\\((\\d{{4}}-\\d{{2}}-\\d{{2}} \\d{{2}}:\\d{{2}}:\\d{{2}})\\)')
+      )
+      LIMIT 1
+    )[SAFE_OFFSET(0)] AS kickoff_time,
+    ARRAY_AGG(detail_norm IGNORE NULLS LIMIT 1)[SAFE_OFFSET(0)] AS sample_detail,
+    ARRAY_AGG(
+      NULLIF(TRIM(SPLIT(detail_norm, '\\n')[SAFE_OFFSET(2)]), '')
+      IGNORE NULLS
+      LIMIT 1
+    )[SAFE_OFFSET(0)] AS match_name_raw
+  FROM wc
+  GROUP BY game_id
+), final AS (
+  SELECT
+    game_id,
+    '足球' AS sport,
+    '世界杯2026' AS tournament,
+    CASE
+      WHEN REGEXP_CONTAINS(IFNULL(match_name_raw, ''), r'入围16强|冠军盘口|特别玩法') THEN '特别玩法'
+      WHEN kickoff_time >= DATETIME '2026-07-18 00:00:00' THEN '决赛阶段'
+      WHEN kickoff_time >= DATETIME '2026-07-14 00:00:00' THEN '4强'
+      WHEN kickoff_time >= DATETIME '2026-07-09 00:00:00' THEN '8强'
+      WHEN kickoff_time >= DATETIME '2026-07-04 00:00:00' THEN '16强'
+      WHEN kickoff_time >= DATETIME '2026-06-28 00:00:00' THEN '32强'
+      ELSE '小组赛'
+    END AS stage,
+    match_name_raw AS match_name,
+    TRIM(SPLIT(match_name_raw, ' v ')[SAFE_OFFSET(0)]) AS home_team,
+    TRIM(SPLIT(match_name_raw, ' v ')[SAFE_OFFSET(1)]) AS away_team,
+    kickoff_time,
+    sample_detail,
+    CURRENT_TIMESTAMP() AS updated_at
+  FROM parsed
+)
+SELECT *
+FROM final
+WHERE game_id IS NOT NULL AND game_id != ''
+"""
+
+SQL_FACT_WORLDCUP_BET = f"""
+CREATE OR REPLACE TABLE `{BQ_PREFIX}.fact_worldcup_bet` AS
+SELECT
+  f.*
+FROM `{BQ_PREFIX}.fact_bet_detail` f
+JOIN `{BQ_PREFIX}.dim_game` g
+  ON TRIM(CAST(f.`游戏编号` AS STRING)) = g.game_id
+WHERE CAST(f.`投注详情` AS STRING) LIKE '%世界杯2026(在加拿大、墨西哥&美国)%'
+  AND LOWER(CAST(f.`投注详情` AS STRING)) NOT LIKE '%panda%'
+  AND IFNULL(CAST(f.`游戏名称` AS STRING), '') NOT LIKE '%串关%'
+"""
+
+SQL_AGG_WORLDCUP_MATCH = f"""
+CREATE OR REPLACE TABLE `{BQ_PREFIX}.agg_worldcup_match` AS
+SELECT
+  g.game_id,
+  g.tournament,
+  g.stage,
+  g.match_name,
+  g.home_team,
+  g.away_team,
+  g.kickoff_time,
+  DATE(g.kickoff_time) AS match_date,
+  COUNT(*) AS bet_count,
+  COUNT(DISTINCT f.`会员账号`) AS member_count,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(f.`下注金额` AS STRING)), ',', '') AS FLOAT64)) AS bet_amount,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(f.`有效投注` AS STRING)), ',', '') AS FLOAT64)) AS valid_turnover,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(f.`盈亏` AS STRING)), ',', '') AS FLOAT64)) AS member_profit_loss,
+  -SUM(SAFE_CAST(REPLACE(TRIM(CAST(f.`盈亏` AS STRING)), ',', '') AS FLOAT64)) AS platform_profit_loss,
+  SAFE_DIVIDE(
+    SUM(SAFE_CAST(REPLACE(TRIM(CAST(f.`盈亏` AS STRING)), ',', '') AS FLOAT64)),
+    NULLIF(SUM(SAFE_CAST(REPLACE(TRIM(CAST(f.`有效投注` AS STRING)), ',', '') AS FLOAT64)), 0)
+  ) AS member_rtp,
+  SAFE_DIVIDE(
+    -SUM(SAFE_CAST(REPLACE(TRIM(CAST(f.`盈亏` AS STRING)), ',', '') AS FLOAT64)),
+    NULLIF(SUM(SAFE_CAST(REPLACE(TRIM(CAST(f.`有效投注` AS STRING)), ',', '') AS FLOAT64)), 0)
+  ) AS platform_roi,
+  CURRENT_TIMESTAMP() AS updated_at
+FROM `{BQ_PREFIX}.fact_worldcup_bet` f
+JOIN `{BQ_PREFIX}.dim_game` g
+  ON TRIM(CAST(f.`游戏编号` AS STRING)) = g.game_id
+GROUP BY
+  g.game_id,
+  g.tournament,
+  g.stage,
+  g.match_name,
+  g.home_team,
+  g.away_team,
+  g.kickoff_time
+"""
+
+SQL_AGG_WORLDCUP_PLAYTYPE = f"""
+CREATE OR REPLACE TABLE `{BQ_PREFIX}.agg_worldcup_playtype` AS
+SELECT
+  g.game_id,
+  g.tournament,
+  g.stage,
+  g.match_name,
+  COALESCE(NULLIF(TRIM(CAST(f.`玩法` AS STRING)), ''), '未分类') AS play_type,
+  COUNT(*) AS bet_count,
+  COUNT(DISTINCT f.`会员账号`) AS member_count,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(f.`下注金额` AS STRING)), ',', '') AS FLOAT64)) AS bet_amount,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(f.`有效投注` AS STRING)), ',', '') AS FLOAT64)) AS valid_turnover,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(f.`盈亏` AS STRING)), ',', '') AS FLOAT64)) AS member_profit_loss,
+  -SUM(SAFE_CAST(REPLACE(TRIM(CAST(f.`盈亏` AS STRING)), ',', '') AS FLOAT64)) AS platform_profit_loss,
+  CURRENT_TIMESTAMP() AS updated_at
+FROM `{BQ_PREFIX}.fact_worldcup_bet` f
+JOIN `{BQ_PREFIX}.dim_game` g
+  ON TRIM(CAST(f.`游戏编号` AS STRING)) = g.game_id
+GROUP BY
+  g.game_id,
+  g.tournament,
+  g.stage,
+  g.match_name,
+  play_type
+"""
+
+SQL_AGG_MEMBER_WORLDCUP = f"""
+CREATE OR REPLACE TABLE `{BQ_PREFIX}.agg_member_worldcup` AS
+SELECT
+  `会员账号` AS member_key,
+  COUNT(*) AS bet_count,
+  COUNT(DISTINCT TRIM(CAST(`游戏编号` AS STRING))) AS game_count,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(`下注金额` AS STRING)), ',', '') AS FLOAT64)) AS bet_amount,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(`有效投注` AS STRING)), ',', '') AS FLOAT64)) AS valid_turnover,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(`盈亏` AS STRING)), ',', '') AS FLOAT64)) AS member_profit_loss,
+  -SUM(SAFE_CAST(REPLACE(TRIM(CAST(`盈亏` AS STRING)), ',', '') AS FLOAT64)) AS platform_profit_loss,
+  COUNT(DISTINCT COALESCE(NULLIF(TRIM(CAST(`玩法` AS STRING)), ''), '未分类')) AS play_type_count,
+  COUNT(DISTINCT TRIM(CAST(`场馆名称` AS STRING))) AS provider_count,
+  CURRENT_TIMESTAMP() AS updated_at
+FROM `{BQ_PREFIX}.fact_worldcup_bet`
+GROUP BY member_key
+"""
+
+SQL_AGG_DASHBOARD_DAILY = f"""
+CREATE OR REPLACE TABLE `{BQ_PREFIX}.agg_dashboard_daily` AS
+SELECT
+  DATE({BET_DT}) AS report_date,
+  COUNT(*) AS bet_count,
+  COUNT(DISTINCT `会员账号`) AS member_count,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(`下注金额` AS STRING)), ',', '') AS FLOAT64)) AS bet_amount,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(`有效投注` AS STRING)), ',', '') AS FLOAT64)) AS valid_turnover,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(`盈亏` AS STRING)), ',', '') AS FLOAT64)) AS member_profit_loss,
+  -SUM(SAFE_CAST(REPLACE(TRIM(CAST(`盈亏` AS STRING)), ',', '') AS FLOAT64)) AS platform_profit_loss,
+  SUM(CASE
+    WHEN CAST(`投注详情` AS STRING) LIKE '%世界杯2026(在加拿大、墨西哥&美国)%'
+    THEN SAFE_CAST(REPLACE(TRIM(CAST(`有效投注` AS STRING)), ',', '') AS FLOAT64)
+    ELSE 0
+  END) AS worldcup_turnover,
+  SUM(CASE
+    WHEN TRIM(CAST(`游戏类型` AS STRING)) = '体育'
+    THEN SAFE_CAST(REPLACE(TRIM(CAST(`有效投注` AS STRING)), ',', '') AS FLOAT64)
+    ELSE 0
+  END) AS sportsbook_turnover,
+  SUM(CASE
+    WHEN TRIM(CAST(`游戏类型` AS STRING)) != '体育'
+    THEN SAFE_CAST(REPLACE(TRIM(CAST(`有效投注` AS STRING)), ',', '') AS FLOAT64)
+    ELSE 0
+  END) AS casino_turnover,
+  CURRENT_TIMESTAMP() AS updated_at
+FROM `{BQ_PREFIX}.fact_bet_detail`
+WHERE DATE({BET_DT}) IS NOT NULL
+GROUP BY report_date
+"""
+
+
+def refresh_worldcup_aggregates(client: bigquery.Client | None = None, *, stop_on_error: bool = False) -> list[RefreshResult]:
+    """Rebuild World Cup fact and aggregate tables used by 世界杯专区."""
+    client = client or bigquery.Client(project=PROJECT_ID)
+    steps: list[tuple[str, str]] = [
+        ("fact_bet_detail", SQL_FACT_BET_DETAIL),
+        ("dim_game", SQL_DIM_GAME),
+        ("fact_worldcup_bet", SQL_FACT_WORLDCUP_BET),
+        ("agg_worldcup_match", SQL_AGG_WORLDCUP_MATCH),
+        ("agg_worldcup_playtype", SQL_AGG_WORLDCUP_PLAYTYPE),
+        ("agg_member_worldcup", SQL_AGG_MEMBER_WORLDCUP),
+        ("agg_dashboard_daily", SQL_AGG_DASHBOARD_DAILY),
+    ]
+    results: list[RefreshResult] = []
+    for table, sql in steps:
+        try:
+            _run(client, sql)
+            results.append(RefreshResult(table, True, "OK"))
+        except Exception as exc:
+            results.append(RefreshResult(table, False, str(exc)[:500]))
+            if stop_on_error:
+                break
+    return results
+
+
+def refresh_full_warehouse(client: bigquery.Client | None = None, *, stop_on_error: bool = False) -> list[RefreshResult]:
+    """V5.3 one-click refresh: core marts + World Cup aggregates + dashboard daily."""
+    client = client or bigquery.Client(project=PROJECT_ID)
+    results: list[RefreshResult] = []
+    results.extend(refresh_core_marts(client, stop_on_error=stop_on_error))
+    if stop_on_error and any(not r.ok for r in results):
+        return results
+    results.extend(refresh_worldcup_aggregates(client, stop_on_error=stop_on_error))
+    return results
+
+
 def format_refresh_results(results: Iterable[RefreshResult]) -> str:
     lines = []
     for r in results:

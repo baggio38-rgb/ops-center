@@ -23,7 +23,7 @@ from google.cloud import bigquery
 from config import BQ_PREFIX
 from services.data_cleaner import clean_upload_dataframe
 from services.bigquery_client import get_bq_client
-from services.etl_refresh import refresh_core_marts, format_refresh_results
+from services.etl_refresh import refresh_core_marts, refresh_full_warehouse, format_refresh_results
 from core.legacy import (
     hero,
     section_header,
@@ -1466,15 +1466,15 @@ def _render_v7_stream_upload(files, zip_pw: str, chunk_size: int, auto_sync: boo
     _write_upload_history(client, logs)
 
     if ok_messages and auto_sync:
-        with st.spinner('正在自动更新 Dashboard / Member360 / 风控中心资料表...'):
+        with st.spinner('正在自动更新 V5.3 数据仓库 / 世界杯专区 / Dashboard...'):
             try:
-                refresh_results = refresh_core_marts(client)
+                refresh_results = refresh_full_warehouse(client)
                 if all(r.ok for r in refresh_results):
-                    st.success('核心资料表已自动更新：\n\n' + format_refresh_results(refresh_results))
+                    st.success('V5.3 全部资料表已自动更新：\n\n' + format_refresh_results(refresh_results))
                 else:
-                    st.warning('部分核心资料表更新失败：\n\n' + format_refresh_results(refresh_results))
+                    st.warning('部分 V5.3 资料表更新失败：\n\n' + format_refresh_results(refresh_results))
             except Exception as ex:
-                st.warning(f'资料已写入，但自动更新核心资料表失败：{str(ex)[:180]}。可在「同步核心资料表」手动执行。')
+                st.warning(f'资料已写入，但 V5.3 自动刷新失败：{str(ex)[:180]}。可在「同步核心资料表」手动执行。')
     try:
         st.cache_data.clear()
     except Exception:
@@ -1495,12 +1495,12 @@ def _render_data_upload_impl():
 
     it = _import_tool()
     client_for_sync = get_bq_client()
-    with st.expander('🔄 同步核心资料表（raw → Dashboard / Member360 / 风控）', expanded=False):
-        st.caption('上传资料后会自动同步；如果你手动修过 BigQuery，或首页最新经营日没更新，可以按这里重建核心资料表。')
-        if st.button('立即同步核心资料表', key='sync_core_marts_btn'):
-            with st.spinner('正在重建 fact_member_daily_v2 / mart_member_profile / risk_member_score...'):
+    with st.expander('🔄 V5.3 自动刷新（raw → fact → dim → agg → Dashboard）', expanded=False):
+        st.caption('上传资料后建议执行一次；它会重建 fact_bet_detail、dim_game、fact_worldcup_bet、世界杯聚合表、会员聚合表与首页日汇总。')
+        if st.button('立即执行 V5.3 自动刷新', key='sync_core_marts_btn'):
+            with st.spinner('正在重建 V5.3 数据仓库：fact / dim / agg ...'):
                 try:
-                    sync_results = refresh_core_marts(client_for_sync)
+                    sync_results = refresh_full_warehouse(client_for_sync)
                     if all(r.ok for r in sync_results):
                         st.success(format_refresh_results(sync_results))
                     else:
@@ -1524,8 +1524,8 @@ def _render_data_upload_impl():
     if use_v7:
         chunk_size = st.selectbox('BigQuery 分批写入大小', [10000, 20000, 50000, 100000], index=2,
                                   help='档案越大，建议选 20000 或 50000；内存较小选 10000。')
-        auto_sync = st.checkbox('上传完成后自动同步核心资料表', value=True,
-                                help='自动重建 fact_member_daily_v2 / mart_member_profile / risk_member_score，并清除快取。')
+        auto_sync = st.checkbox('上传完成后自动执行 V5.3 全量刷新', value=True,
+                                help='自动重建 fact_bet_detail / dim_game / fact_worldcup_bet / agg_worldcup_match / agg_member_worldcup / agg_dashboard_daily，并清除快取。')
         if not files:
             st.info('👆 请上传 .xlsx / .csv / .zip。V7 会逐档写入，避免大档案把 Streamlit 撑爆。')
             return
@@ -1709,15 +1709,15 @@ def _render_data_upload_impl():
             st.error('未写入：\n\n' + '\n\n'.join('· ' + s for s in fail))
 
         if ok:
-            with st.spinner('正在自动更新 Dashboard / Member360 / 风控中心资料表...'):
+            with st.spinner('正在自动更新 V5.3 数据仓库 / 世界杯专区 / Dashboard...'):
                 try:
-                    refresh_results = refresh_core_marts(client)
+                    refresh_results = refresh_full_warehouse(client)
                     if all(r.ok for r in refresh_results):
-                        st.success('核心资料表已自动更新：\n\n' + format_refresh_results(refresh_results))
+                        st.success('V5.3 全部资料表已自动更新：\n\n' + format_refresh_results(refresh_results))
                     else:
-                        st.warning('部分核心资料表更新失败：\n\n' + format_refresh_results(refresh_results))
+                        st.warning('部分 V5.3 资料表更新失败：\n\n' + format_refresh_results(refresh_results))
                 except Exception as ex:
-                    st.warning(f'资料已写入，但自动更新核心资料表失败：{str(ex)[:180]}。可在「同步核心资料表」手动执行。')
+                    st.warning(f'资料已写入，但 V5.3 自动刷新失败：{str(ex)[:180]}。可在「同步核心资料表」手动执行。')
         try:
             st.cache_data.clear()
         except Exception:
