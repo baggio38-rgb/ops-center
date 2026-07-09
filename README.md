@@ -1,31 +1,25 @@
-# Ops Center
+# 亿兆智能决策平台 YEIP
 
-Streamlit-based operations data platform.
+Yizhao Enterprise Intelligence Platform
 
-## Current structure
+> 让数据成为决策，而不是报表。
 
-- `dashboard.py`：主入口與中文導航
-- `app_pages/`：頁面群組註冊
-- `features/`：各功能模組實作
-- `components/`：共用 UI / filter / metric helpers
-- `services/`：BigQuery 與資料載入服務
-- `utils/`：格式化與 DataFrame 工具
-- `core/legacy.py`：過渡期相容核心，後續會逐步清空
-- `sql/`：SQL 模組化預留位置
+## Current Stable Baseline
 
-## Smoke test
+- V5.3: Data Foundation + Auto Refresh Architecture
+- V6.0: Operation Overview prototype
+- Next: V6.1 Enterprise UI
 
-```bash
-python -m compileall .
-python scripts/smoke_test.py
-```
+## Recommended Branches
 
-## Deployment
+- `main`: stable production branch
+- `develop`: integration branch
+- `feature/v6.1-enterprise-ui`: V6.1 UI refactor
+- `feature/member360`: Member 360 module
+- `feature/risk-center`: Risk Center module
 
-Main file path:
+## Core Principle
 
-```text
-dashboard.py
-```
-
-Streamlit secrets must include `gcp_service_account` when service-account access is required.
+1. BigQuery is the single source of truth.
+2. Dashboard only displays data, never performs core business calculations.
+3. All metrics must be traceable to an Aggregate table.
