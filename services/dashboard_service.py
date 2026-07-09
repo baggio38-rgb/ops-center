@@ -1,8 +1,9 @@
 """Service layer for V6 运营总览.
 
-Dashboard pages should use this module instead of embedding SQL directly.
-The service reads V6 aggregate tables when available and gracefully falls back to
-V5.3 `agg_dashboard_daily` for compatibility.
+V6.0.1 Hotfix:
+- Uses the existing stable V5.3 aggregate table `agg_dashboard_daily`.
+- Does not require `agg_dashboard_kpi`, `agg_dashboard_hourly`, or `agg_dashboard_top`.
+- Keeps Streamlit pages alive with friendly empty states instead of raw BigQuery 404 errors.
 """
 from __future__ import annotations
 
@@ -16,25 +17,18 @@ from services.bigquery_client import query_bq
 def _safe_query(sql: str) -> pd.DataFrame:
     try:
         return query_bq(sql)
-    except Exception as exc:
-        # Keep pages alive even if a new aggregate has not been created yet.
-        st.warning(f"数据查询暂时不可用：{exc}")
+    except Exception:
         return pd.DataFrame()
 
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_dashboard_kpi() -> pd.DataFrame:
-    sql = f"""
-    SELECT *
-    FROM `{BQ_PREFIX}.agg_dashboard_kpi`
-    ORDER BY report_date DESC
-    LIMIT 1
-    """
-    df = _safe_query(sql)
-    if not df.empty:
-        return df
+    """Load latest KPI from the stable daily aggregate.
 
-    fallback = f"""
+    This intentionally reads only `agg_dashboard_daily` so V6 remains compatible
+    with the current V5.3 auto-refresh pipeline.
+    """
+    sql = f"""
     WITH ranked AS (
       SELECT *, ROW_NUMBER() OVER (ORDER BY report_date DESC) AS rn
       FROM `{BQ_PREFIX}.agg_dashboard_daily`
@@ -68,66 +62,96 @@ def load_dashboard_kpi() -> pd.DataFrame:
     FROM today t
     LEFT JOIN yesterday y ON TRUE
     """
-    return _safe_query(fallback)
+    return _safe_query(sql)
 
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_dashboard_hourly() -> pd.DataFrame:
+    """V6.0.1 uses daily aggregate as a safe trend fallback.
+
+    The column name remains compatible with the page by exposing `report_hour` as
+    the report date string. A real hourly aggregate can be added later without
+    breaking the UI.
+    """
     sql = f"""
-    SELECT *
-    FROM `{BQ_PREFIX}.agg_dashboard_hourly`
-    WHERE report_date = (SELECT MAX(report_date) FROM `{BQ_PREFIX}.agg_dashboard_hourly`)
-    ORDER BY report_hour
+    SELECT
+      CAST(report_date AS STRING) AS report_hour,
+      report_date,
+      bet_amount,
+      valid_turnover,
+      platform_profit_loss,
+      member_count,
+      updated_at
+    FROM `{BQ_PREFIX}.agg_dashboard_daily`
+    ORDER BY report_date DESC
+    LIMIT 7
     """
     df = _safe_query(sql)
-    if not df.empty:
-        return df
-    return pd.DataFrame()
+    if df.empty:
+      return df
+    return df.sort_values("report_date")
 
 
 @st.cache_data(ttl=300, show_spinner=False)
 def load_dashboard_top(metric_type: str | None = None, limit: int = 10) -> pd.DataFrame:
-    where = ""
-    if metric_type:
-        where = f"WHERE metric_type = '{metric_type}'"
+    """Load top rankings from existing stable aggregates.
+
+    No dependency on `agg_dashboard_top` in V6.0.1.
+    """
     sql = f"""
+    WITH match_top AS (
+      SELECT
+        CURRENT_DATE() AS report_date,
+        '热门赛事' AS metric_type,
+        CAST(game_id AS STRING) AS item_id,
+        match_name AS item_name,
+        valid_turnover,
+        platform_profit_loss,
+        bet_count,
+        member_count,
+        updated_at
+      FROM `{BQ_PREFIX}.agg_worldcup_match`
+    ), member_top AS (
+      SELECT
+        CURRENT_DATE() AS report_date,
+        '高贡献会员' AS metric_type,
+        CAST(member_key AS STRING) AS item_id,
+        CAST(member_key AS STRING) AS item_name,
+        valid_turnover,
+        platform_profit_loss,
+        bet_count,
+        NULL AS member_count,
+        updated_at
+      FROM `{BQ_PREFIX}.agg_member_worldcup`
+    ), unioned AS (
+      SELECT * FROM match_top
+      UNION ALL
+      SELECT * FROM member_top
+    )
     SELECT *
-    FROM `{BQ_PREFIX}.agg_dashboard_top`
-    {where}
-    QUALIFY ROW_NUMBER() OVER (PARTITION BY metric_type ORDER BY valid_turnover DESC, platform_profit_loss DESC) <= {int(limit)}
+    FROM unioned
+    WHERE (@metric_type IS NULL OR metric_type = @metric_type)
+    QUALIFY ROW_NUMBER() OVER (PARTITION BY metric_type ORDER BY valid_turnover DESC, ABS(platform_profit_loss) DESC) <= {int(limit)}
     ORDER BY metric_type, valid_turnover DESC
     """
+    # query_bq in this project does not support named parameters, so apply a simple filter after query.
+    sql = sql.replace("WHERE (@metric_type IS NULL OR metric_type = @metric_type)", "WHERE TRUE")
     df = _safe_query(sql)
-    if not df.empty:
-        return df
-
-    # Fallback from World Cup and member aggregates, enough for the first V6 demo.
-    fallback = f"""
-    SELECT
-      CURRENT_DATE() AS report_date,
-      '热门赛事' AS metric_type,
-      game_id AS item_id,
-      match_name AS item_name,
-      valid_turnover,
-      platform_profit_loss,
-      bet_count,
-      member_count,
-      updated_at
-    FROM `{BQ_PREFIX}.agg_worldcup_match`
-    ORDER BY valid_turnover DESC
-    LIMIT {int(limit)}
-    """
-    return _safe_query(fallback)
+    if metric_type and not df.empty and "metric_type" in df.columns:
+        df = df[df["metric_type"] == metric_type]
+    return df
 
 
 def make_rule_summary(kpi: pd.DataFrame, tops: pd.DataFrame) -> list[str]:
     if kpi.empty:
-        return ["目前没有足够资料生成运营摘要。"]
+        return ["目前没有足够资料生成运营摘要，请确认 V5.3 自动刷新已完成。"]
     row = kpi.iloc[0]
     lines: list[str] = []
 
     def pct(v):
         try:
+            if pd.isna(v):
+                return 0.0
             return float(v) * 100
         except Exception:
             return 0.0

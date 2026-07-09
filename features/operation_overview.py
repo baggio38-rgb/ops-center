@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from typing import Any
+from textwrap import dedent
 
 import pandas as pd
 import plotly.express as px
@@ -22,7 +23,7 @@ from services.dashboard_service import (
 
 def _inject_v6_css() -> None:
     st.markdown(
-        kpi_css() + page_header_css() + section_title_css() + chart_card_css() + status_badge_css() +
+        dedent(kpi_css() + page_header_css() + section_title_css() + chart_card_css() + status_badge_css() +
         """
         <style>
         .yz-ai-summary-v6 {
@@ -48,7 +49,7 @@ def _inject_v6_css() -> None:
         }
         .yz-table-note-v6 {font-size:12px; color:#94a3b8; font-weight:800; margin-top:-4px; margin-bottom:7px;}
         </style>
-        """,
+        """),
         unsafe_allow_html=True,
     )
 
@@ -75,7 +76,7 @@ def _updated_at(kpi: pd.DataFrame) -> str:
 
 def _render_kpis(kpi: pd.DataFrame) -> None:
     if kpi.empty:
-        st.info("尚未建立运营总览资料。请先执行 V6.0 SQL 或 V5.3 自动刷新。")
+        st.info("尚未建立运营总览资料。请先执行 V5.3 自动刷新。")
         return
     r = kpi.iloc[0]
     first = st.columns(4)
@@ -102,7 +103,7 @@ def _render_kpis(kpi: pd.DataFrame) -> None:
 def _render_hourly(hourly: pd.DataFrame) -> None:
     section_title("今日趋势", "以小时观察投注金额、有效投注与平台盈亏。")
     if hourly.empty:
-        st.info("尚未建立 agg_dashboard_hourly，趋势图会在执行 V6 SQL 后显示。")
+        st.info("目前暂无趋势资料，请确认 V5.3 自动刷新已完成。")
         return
     df = hourly.copy()
     if "report_hour" in df.columns:
@@ -146,7 +147,7 @@ def _format_top_df(df: pd.DataFrame) -> pd.DataFrame:
 def _render_tops(tops: pd.DataFrame) -> None:
     section_title("热门排行榜", "运营总览的四个入口：赛事、游戏、场馆、会员。")
     if tops.empty:
-        st.info("尚未建立 agg_dashboard_top。先显示世界杯排行或等待 V6 SQL 完成。")
+        st.info("目前暂无排行榜资料，请确认 V5.3 自动刷新已完成。")
         return
     c1, c2 = st.columns(2)
     types = list(tops["metric_type"].dropna().unique()) if "metric_type" in tops.columns else ["热门赛事"]
@@ -195,12 +196,12 @@ def render_operation_overview() -> None:
     page_header(
         "运营总览",
         "管理层首页，快速掌握今日投注、盈亏、会员活跃与重点风险。",
-        version="V6.0.0",
+        version="V6.0.1",
         updated_at=_updated_at(kpi),
         status_items=[("BigQuery", "正常"), ("ETL", "正常"), ("Aggregate", "正常")],
     )
 
-    section_title("今日核心 KPI", "所有数字来自 BigQuery Aggregate，Dashboard 不做业务计算。")
+    section_title("今日核心 KPI", "所有数字来自现有 BigQuery Aggregate：agg_dashboard_daily。")
     _render_kpis(kpi)
     _render_hourly(hourly)
     _render_tops(tops)
