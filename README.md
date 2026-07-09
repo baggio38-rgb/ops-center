@@ -1,25 +1,25 @@
-# 亿兆智能决策平台 YEIP
+# 亿兆智能决策平台 YEIP Developer Kit v1.0
 
-Yizhao Enterprise Intelligence Platform
+这是亿兆智能决策平台进入 V6.1 Enterprise UI 之后的开发基础包。
 
-> 让数据成为决策，而不是报表。
+## 使用方式
 
-## Current Stable Baseline
+1. 解压到你的 `ops-center` 根目录。
+2. 打开 PowerShell。
+3. 执行：
 
-- V5.3: Data Foundation + Auto Refresh Architecture
-- V6.0: Operation Overview prototype
-- Next: V6.1 Enterprise UI
+```powershell
+cd G:\Projects\ops-center
+.\scripts\init_git.ps1
+```
 
-## Recommended Branches
+## 目录说明
 
-- `main`: stable production branch
-- `develop`: integration branch
-- `feature/v6.1-enterprise-ui`: V6.1 UI refactor
-- `feature/member360`: Member 360 module
-- `feature/risk-center`: Risk Center module
-
-## Core Principle
-
-1. BigQuery is the single source of truth.
-2. Dashboard only displays data, never performs core business calculations.
-3. All metrics must be traceable to an Aggregate table.
+- `docs/`：项目文档、架构、路线图、数据字典。
+- `scripts/`：开发脚本，一键初始化 Git、启动、检查。
+- `config/`：版本、主题、菜单与全局设定。
+- `components/`：企业 UI 组件。
+- `services/`：BigQuery 与业务数据读取层。
+- `pages/`：Streamlit 页面。
+- `sql/`：SQL 脚本。
+- `utils/`：格式化、CSS 加载等工具。

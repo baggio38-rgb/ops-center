@@ -1,0 +1,7 @@
+APP_NAME = "亿兆智能决策平台"
+APP_NAME_EN = "Yizhao Enterprise Intelligence Platform"
+VERSION = "6.1.0"
+BUILD = "20260709.001"
+COMPANY = "亿兆体育"
+TIMEZONE = "Asia/Taipei"
+DATASET = "mydata-494606.mydata"

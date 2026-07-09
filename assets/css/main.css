@@ -1,0 +1,67 @@
+:root {
+  --yz-primary: #2563EB;
+  --yz-success: #22C55E;
+  --yz-warning: #F59E0B;
+  --yz-danger: #EF4444;
+  --yz-bg: #07152A;
+  --yz-card: #112847;
+  --yz-text: #F8FAFC;
+  --yz-muted: #94A3B8;
+  --yz-radius: 22px;
+}
+
+.yz-hero {
+  border-radius: var(--yz-radius);
+  padding: 28px 32px;
+  background: linear-gradient(135deg, #123B8F, #0E7490);
+  color: var(--yz-text);
+  box-shadow: 0 12px 36px rgba(0,0,0,.28);
+  margin-bottom: 24px;
+}
+
+.yz-hero-title {
+  font-size: 34px;
+  font-weight: 900;
+  margin-bottom: 6px;
+}
+
+.yz-hero-subtitle {
+  font-size: 14px;
+  color: #D7EAFE;
+}
+
+.yz-kpi-card {
+  border-radius: 20px;
+  padding: 20px;
+  background: rgba(255,255,255,.94);
+  color: #0F172A;
+  box-shadow: 0 10px 30px rgba(0,0,0,.18);
+  min-height: 150px;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.yz-kpi-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 16px 42px rgba(0,0,0,.28);
+}
+
+.yz-kpi-label {
+  font-size: 14px;
+  color: #475569;
+  font-weight: 800;
+}
+
+.yz-kpi-value {
+  font-size: 30px;
+  font-weight: 950;
+  margin-top: 12px;
+}
+
+.yz-status-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  background: var(--yz-success);
+  margin-right: 6px;
+}

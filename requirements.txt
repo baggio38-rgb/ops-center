@@ -1,10 +1,7 @@
 streamlit
-plotly
 pandas
-numpy
+plotly
 google-cloud-bigquery
 db-dtypes
-google-auth
-gspread
-openpyxl
 pyarrow
+openpyxl

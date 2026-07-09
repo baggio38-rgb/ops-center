@@ -1,37 +1,23 @@
 # Roadmap
 
-## V5.3 Stable
-- Data warehouse
-- World Cup Enterprise Dashboard
-- Auto Refresh Architecture
-
-## V6.0 Operation Overview
-- Operation Overview prototype
-- KPI cards
-- Dashboard service
+## V5.3 Data Foundation
+- BigQuery 数据仓库
+- ETL 自动刷新
+- 世界杯专区
+- 数据中心
 
 ## V6.1 Enterprise UI
-- Enterprise Glass UI
-- Unified CSS loader
 - Hero Banner
-- KPI Card refactor
+- KPI Card
 - Dashboard Health
+- CSS 模块化
 
 ## V6.2 AI Copilot
-- AI operation assistant
-- Natural language analysis
-- Daily operation insight
+- AI 今日运营摘要
+- 问答式数据分析
 
 ## V6.3 Member 360
-- Member profile
-- Betting behavior
-- Risk profile
+- 会员完整画像
 
 ## V6.4 Risk Center
-- High risk members
-- Abnormal RTP
-- Winning streaks
-
-## V7 Enterprise Intelligence Platform
-- Executive Mode
-- Cross-module AI analysis
+- 风控异常监控

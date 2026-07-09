@@ -1,11 +1,19 @@
-# Run inside ops-center project root
+Write-Host "========================================="
+Write-Host " YEIP Git Init"
+Write-Host "========================================="
 
-git init
-git branch -M main
+if (-not (Test-Path ".git")) {
+    git init
+}
+
+git checkout -B main
 git add .
-git commit -m "chore: initialize YEIP stable baseline"
+git commit -m "chore: initialize YEIP project foundation"
 
-git checkout -b develop
-git checkout -b feature/v6.1-enterprise-ui
+git checkout -B develop
+git checkout -B feature/v6.1-enterprise-ui
 
-Write-Host "Git initialized. Current branch: feature/v6.1-enterprise-ui"
+Write-Host "========================================="
+Write-Host " Git branches created:"
+git branch
+Write-Host "========================================="
