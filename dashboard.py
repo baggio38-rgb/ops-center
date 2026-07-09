@@ -37,7 +37,7 @@ except Exception:
 
 
 NAV_GROUPS = {
-    "🏠 首页": HOME_PAGES,
+    "🏠 运营总览": HOME_PAGES,
     "💰 财务中心": FINANCE_RESULT_PAGES,
     "👥 会员中心": MEMBER_VALUE_PAGES,
     "🛡 风控中心": RISK_CENTER_PAGES,

@@ -602,6 +602,143 @@ WHERE DATE({BET_DT}) IS NOT NULL
 GROUP BY report_date
 """
 
+SQL_AGG_DASHBOARD_KPI = f"""
+CREATE OR REPLACE TABLE `{BQ_PREFIX}.agg_dashboard_kpi` AS
+WITH ranked AS (
+  SELECT *, ROW_NUMBER() OVER (ORDER BY report_date DESC) AS rn
+  FROM `{BQ_PREFIX}.agg_dashboard_daily`
+), base AS (
+  SELECT
+    t.report_date,
+    t.bet_count,
+    t.member_count,
+    t.bet_amount,
+    t.valid_turnover,
+    t.member_profit_loss,
+    t.platform_profit_loss,
+    t.worldcup_turnover,
+    t.sportsbook_turnover,
+    t.casino_turnover,
+    SAFE_DIVIDE(t.platform_profit_loss, NULLIF(t.valid_turnover, 0)) AS platform_roi,
+    SAFE_DIVIDE(t.member_profit_loss, NULLIF(t.valid_turnover, 0)) AS member_rtp,
+    y.bet_amount AS prev_bet_amount,
+    y.valid_turnover AS prev_valid_turnover,
+    y.platform_profit_loss AS prev_platform_profit_loss,
+    y.member_count AS prev_member_count,
+    SAFE_DIVIDE(t.bet_amount - y.bet_amount, NULLIF(y.bet_amount, 0)) AS bet_amount_delta,
+    SAFE_DIVIDE(t.valid_turnover - y.valid_turnover, NULLIF(y.valid_turnover, 0)) AS valid_turnover_delta,
+    SAFE_DIVIDE(t.platform_profit_loss - y.platform_profit_loss, NULLIF(ABS(y.platform_profit_loss), 0)) AS platform_profit_delta,
+    SAFE_DIVIDE(t.member_count - y.member_count, NULLIF(y.member_count, 0)) AS member_count_delta,
+    t.updated_at
+  FROM ranked t
+  LEFT JOIN ranked y ON y.rn = t.rn + 1
+)
+SELECT * FROM base
+"""
+
+SQL_AGG_DASHBOARD_HOURLY = f"""
+CREATE OR REPLACE TABLE `{BQ_PREFIX}.agg_dashboard_hourly` AS
+SELECT
+  DATE({BET_DT}) AS report_date,
+  EXTRACT(HOUR FROM {BET_DT}) AS report_hour,
+  COUNT(*) AS bet_count,
+  COUNT(DISTINCT `会员账号`) AS member_count,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(`下注金额` AS STRING)), ',', '') AS FLOAT64)) AS bet_amount,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(`有效投注` AS STRING)), ',', '') AS FLOAT64)) AS valid_turnover,
+  SUM(SAFE_CAST(REPLACE(TRIM(CAST(`盈亏` AS STRING)), ',', '') AS FLOAT64)) AS member_profit_loss,
+  -SUM(SAFE_CAST(REPLACE(TRIM(CAST(`盈亏` AS STRING)), ',', '') AS FLOAT64)) AS platform_profit_loss,
+  CURRENT_TIMESTAMP() AS updated_at
+FROM `{BQ_PREFIX}.fact_bet_detail`
+WHERE DATE({BET_DT}) IS NOT NULL
+GROUP BY report_date, report_hour
+"""
+
+SQL_AGG_DASHBOARD_TOP = f"""
+CREATE OR REPLACE TABLE `{BQ_PREFIX}.agg_dashboard_top` AS
+WITH latest_day AS (
+  SELECT MAX(DATE({BET_DT})) AS report_date
+  FROM `{BQ_PREFIX}.fact_bet_detail`
+  WHERE DATE({BET_DT}) IS NOT NULL
+), clean AS (
+  SELECT
+    DATE({BET_DT}) AS report_date,
+    TRIM(CAST(`会员账号` AS STRING)) AS member_id,
+    TRIM(CAST(`场馆名称` AS STRING)) AS provider_name,
+    TRIM(CAST(`游戏名称` AS STRING)) AS game_name,
+    SAFE_CAST(REPLACE(TRIM(CAST(`下注金额` AS STRING)), ',', '') AS FLOAT64) AS bet_amount,
+    SAFE_CAST(REPLACE(TRIM(CAST(`有效投注` AS STRING)), ',', '') AS FLOAT64) AS valid_turnover,
+    SAFE_CAST(REPLACE(TRIM(CAST(`盈亏` AS STRING)), ',', '') AS FLOAT64) AS member_profit_loss
+  FROM `{BQ_PREFIX}.fact_bet_detail`
+  WHERE DATE({BET_DT}) = (SELECT report_date FROM latest_day)
+), provider_top AS (
+  SELECT
+    report_date,
+    '热门场馆' AS metric_type,
+    provider_name AS item_id,
+    provider_name AS item_name,
+    COUNT(*) AS bet_count,
+    COUNT(DISTINCT member_id) AS member_count,
+    SUM(bet_amount) AS bet_amount,
+    SUM(valid_turnover) AS valid_turnover,
+    SUM(member_profit_loss) AS member_profit_loss,
+    -SUM(member_profit_loss) AS platform_profit_loss
+  FROM clean
+  WHERE provider_name IS NOT NULL AND provider_name != ''
+  GROUP BY report_date, provider_name
+), game_top AS (
+  SELECT
+    report_date,
+    '热门游戏' AS metric_type,
+    game_name AS item_id,
+    game_name AS item_name,
+    COUNT(*) AS bet_count,
+    COUNT(DISTINCT member_id) AS member_count,
+    SUM(bet_amount) AS bet_amount,
+    SUM(valid_turnover) AS valid_turnover,
+    SUM(member_profit_loss) AS member_profit_loss,
+    -SUM(member_profit_loss) AS platform_profit_loss
+  FROM clean
+  WHERE game_name IS NOT NULL AND game_name != ''
+  GROUP BY report_date, game_name
+), member_top AS (
+  SELECT
+    report_date,
+    '高贡献会员' AS metric_type,
+    member_id AS item_id,
+    member_id AS item_name,
+    COUNT(*) AS bet_count,
+    1 AS member_count,
+    SUM(bet_amount) AS bet_amount,
+    SUM(valid_turnover) AS valid_turnover,
+    SUM(member_profit_loss) AS member_profit_loss,
+    -SUM(member_profit_loss) AS platform_profit_loss
+  FROM clean
+  WHERE member_id IS NOT NULL AND member_id != ''
+  GROUP BY report_date, member_id
+), match_top AS (
+  SELECT
+    CURRENT_DATE() AS report_date,
+    '热门赛事' AS metric_type,
+    game_id AS item_id,
+    match_name AS item_name,
+    bet_count,
+    member_count,
+    bet_amount,
+    valid_turnover,
+    member_profit_loss,
+    platform_profit_loss
+  FROM `{BQ_PREFIX}.agg_worldcup_match`
+)
+SELECT *, CURRENT_TIMESTAMP() AS updated_at
+FROM (
+  SELECT * FROM provider_top
+  UNION ALL SELECT * FROM game_top
+  UNION ALL SELECT * FROM member_top
+  UNION ALL SELECT * FROM match_top
+)
+QUALIFY ROW_NUMBER() OVER (PARTITION BY metric_type ORDER BY valid_turnover DESC, platform_profit_loss DESC) <= 30
+"""
+
 
 def refresh_worldcup_aggregates(client: bigquery.Client | None = None, *, stop_on_error: bool = False) -> list[RefreshResult]:
     """Rebuild World Cup fact and aggregate tables used by 世界杯专区."""
@@ -614,6 +751,9 @@ def refresh_worldcup_aggregates(client: bigquery.Client | None = None, *, stop_o
         ("agg_worldcup_playtype", SQL_AGG_WORLDCUP_PLAYTYPE),
         ("agg_member_worldcup", SQL_AGG_MEMBER_WORLDCUP),
         ("agg_dashboard_daily", SQL_AGG_DASHBOARD_DAILY),
+        ("agg_dashboard_kpi", SQL_AGG_DASHBOARD_KPI),
+        ("agg_dashboard_hourly", SQL_AGG_DASHBOARD_HOURLY),
+        ("agg_dashboard_top", SQL_AGG_DASHBOARD_TOP),
     ]
     results: list[RefreshResult] = []
     for table, sql in steps:
