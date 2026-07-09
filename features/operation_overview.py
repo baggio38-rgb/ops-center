@@ -1,18 +1,16 @@
-"""V6.0 运营总览页面。"""
+"""V6.2 运营总览页面。CSS centralized in assets/css/main.css."""
 from __future__ import annotations
 
 from typing import Any
-from textwrap import dedent
-
 import pandas as pd
 import plotly.express as px
 import streamlit as st
 
-from components.kpi_card import kpi_card, kpi_css, fmt_compact_number, fmt_percent
-from components.page_header import page_header, page_header_css
-from components.section_title import section_title, section_title_css
-from components.chart_card import chart_card, chart_card_css
-from components.status_badge import status_badge_css
+from components.kpi_card import kpi_card, fmt_compact_number
+from components.page_header import page_header
+from components.section_title import section_title
+from components.chart_card import chart_card
+from utils.style_loader import load_css
 from services.dashboard_service import (
     load_dashboard_hourly,
     load_dashboard_kpi,
@@ -22,36 +20,8 @@ from services.dashboard_service import (
 
 
 def _inject_v6_css() -> None:
-    st.markdown(
-        dedent(kpi_css() + page_header_css() + section_title_css() + chart_card_css() + status_badge_css() +
-        """
-        <style>
-        .yz-ai-summary-v6 {
-          border-radius: 22px;
-          padding: 19px 21px;
-          background: linear-gradient(180deg, rgba(255,255,255,.97), rgba(248,250,252,.96));
-          border: 1px solid rgba(226,232,240,.86);
-          box-shadow: 0 12px 32px rgba(2,6,23,.15);
-          color:#0f172a;
-          font-weight:800;
-          line-height:1.85;
-        }
-        .yz-ai-summary-v6 b {font-weight:950; color:#1d4ed8;}
-        .yz-risk-mini-v6 {
-          border-radius: 18px;
-          padding: 15px 16px;
-          background: rgba(255,255,255,.96);
-          color:#0f172a;
-          border-left: 6px solid #f59e0b;
-          box-shadow: 0 12px 30px rgba(2,6,23,.14);
-          font-weight:850;
-          margin-bottom: 10px;
-        }
-        .yz-table-note-v6 {font-size:12px; color:#94a3b8; font-weight:800; margin-top:-4px; margin-bottom:7px;}
-        </style>
-        """),
-        unsafe_allow_html=True,
-    )
+    """Load centralized CSS once. No inline <style> output."""
+    load_css()
 
 
 def _value(row: pd.Series, key: str, default: Any = 0) -> Any:
@@ -196,7 +166,7 @@ def render_operation_overview() -> None:
     page_header(
         "运营总览",
         "管理层首页，快速掌握今日投注、盈亏、会员活跃与重点风险。",
-        version="V6.0.1",
+        version="V6.2.0",
         updated_at=_updated_at(kpi),
         status_items=[("BigQuery", "正常"), ("ETL", "正常"), ("Aggregate", "正常")],
     )
