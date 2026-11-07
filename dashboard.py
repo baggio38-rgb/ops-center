@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import streamlit as st
 
+# Temporary recovery maintenance: stop this legacy deployment before any data or ETL imports.
+st.warning("資料維護中：02:03 批次復原期間，暫停測試部署的匯入與重建入口。")
+st.stop()
+
 try:
     from version import APP_NAME, APP_VERSION, APP_VERSION_DATE, APP_SUBTITLE
 except Exception:
